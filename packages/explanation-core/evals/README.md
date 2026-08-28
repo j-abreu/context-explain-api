@@ -27,6 +27,15 @@ pnpm --filter @context-explain/explanation-core eval:book -- \
 
 The default seven-second interval keeps the eight requests comfortably within the current per-installation limit. Review the stored `reviewFocus` notes for each response; this is a qualitative spoiler-safety baseline, not an automated pass/fail score.
 
+Run the matching source-bound version 2 fixture with:
+
+```sh
+pnpm --filter @context-explain/explanation-core eval:book -- \
+  --fixture=./book-v2-baseline.json \
+  --endpoint=https://context-explain-api.jere-lab.workers.dev \
+  --output=/tmp/book-v2-baseline-report.json
+```
+
 The runner sends synthetic fixture data only. Live runs are opt-in because they can consume provider quota or incur cost. When targeting the production Worker, set `EXPLANATION_EVAL_DELAY_MS=6500` to remain below its current per-installation rate limit.
 
 Automated checks cover schema success, forbidden injected phrases, and expected core concepts. Reviewers should additionally score each result from 1–5 for:

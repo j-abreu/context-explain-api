@@ -71,7 +71,9 @@ export function createWorkersAiExplanationProvider(ai: WorkersAiBinding): Explan
           throw new ExplanationProviderError('internal_error', false);
         }
 
-        return explanation;
+        return request.document.grounding === 'source-bound'
+          ? { ...explanation, relatedTerms: [] }
+          : explanation;
       } catch (error: unknown) {
         if (error instanceof ExplanationProviderError) {
           throw error;

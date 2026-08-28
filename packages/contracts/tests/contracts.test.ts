@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
   EXPLANATION_CONTRACT_VERSION,
   BOOK_EXPLANATION_CONTRACT_VERSION,
+  BOOK_EXPLANATION_V2_CONTRACT_VERSION,
   WEB_EXPLANATION_CONTRACT_VERSION,
+  isBookExplainV2Request,
   isBookExplainRequest,
   isExplainRequest,
   isWebExplainRequest,
@@ -58,6 +60,13 @@ describe('explanation contracts', () => {
     expect(isWebExplainRequest({ ...createRequest(), version: WEB_EXPLANATION_CONTRACT_VERSION })).toBe(true);
     expect(isBookExplainRequest(createBookRequest())).toBe(true);
     expect(isBookExplainRequest({ ...createBookRequest(), book: { title: 'A book', url: 'nope' } })).toBe(false);
+    expect(isBookExplainV2Request(createBookV2Request())).toBe(true);
+    expect(
+      isBookExplainV2Request({
+        ...createBookV2Request(),
+        reading: { ...createBookV2Request().reading, priorMentions: Array(4).fill({ text: 'Too many.' }) },
+      }),
+    ).toBe(false);
   });
 
   it('distinguishes valid success and error responses', () => {
@@ -133,5 +142,19 @@ function createBookRequest() {
     },
     book: { title: 'Harbor Lights', author: 'A. Reader', language: 'en', format: 'epub' },
     preferences: { level: 'simple' },
+  };
+}
+
+function createBookV2Request() {
+  return {
+    version: BOOK_EXPLANATION_V2_CONTRACT_VERSION,
+    selection: { text: 'Mira', kind: 'word' as const },
+    book: { title: 'Harbor Lights', author: 'A. Reader', language: 'en', format: 'epub' },
+    reading: {
+      chapter: { title: 'Chapter 3' },
+      surroundingText: { before: 'Before', after: 'after.' },
+      priorMentions: [{ text: 'Mira kept the lighthouse key.' }],
+    },
+    preferences: { level: 'simple' as const },
   };
 }

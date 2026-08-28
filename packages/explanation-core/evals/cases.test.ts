@@ -1,4 +1,9 @@
-import { EXPLANATION_LEVELS, isExplainRequest, toExplanationInput } from '@context-explain/contracts';
+import {
+  BOOK_EXPLANATION_V2_CONTRACT_VERSION,
+  EXPLANATION_LEVELS,
+  isExplainRequest,
+  toExplanationInput,
+} from '@context-explain/contracts';
 import { describe, expect, it } from 'vitest';
 
 import { buildExplanationPrompt } from '../src/index.js';
@@ -39,5 +44,26 @@ describe('explanation evaluation corpus', () => {
         context: { immediate: evaluationCase.request.selection.context.immediate },
       });
     }
+  });
+
+  it('adds a source-bound evidence rule for version 2 book inputs', () => {
+    const prompt = buildExplanationPrompt(
+      toExplanationInput({
+        version: BOOK_EXPLANATION_V2_CONTRACT_VERSION,
+        selection: { text: 'Mira', kind: 'word' },
+        book: { title: 'Harbor Lights', language: 'en' },
+        reading: {
+          surroundingText: { before: 'Before', after: 'after.' },
+          priorMentions: [{ text: 'Mira kept the lighthouse key.' }],
+        },
+        preferences: { level: 'simple' },
+      }),
+    );
+
+    expect(prompt.instructions).toContain('Do not use general knowledge');
+    expect(prompt.instructions).not.toContain('may be identified using stable general knowledge');
+    expect(JSON.parse(prompt.input)).toMatchObject({
+      context: { priorMentions: ['Mira kept the lighthouse key.'] },
+    });
   });
 });

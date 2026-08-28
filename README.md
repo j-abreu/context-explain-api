@@ -16,6 +16,7 @@ The existing `POST /explain` contract is retained as the browser compatibility r
 
 - `POST /v1/explain/web`
 - `POST /v1/explain/book`
+- `POST /v2/explain/book`
 
 `book` describes the document domain rather than a particular reader application. KOReader is the first book client.
 
@@ -23,7 +24,7 @@ The existing `POST /explain` contract is retained as the browser compatibility r
 
 The Worker is deployed at `https://context-explain-api.jere-lab.workers.dev`. The former `i-dont-get-it-api` Worker has been retired.
 
-The proposed richer book contract, including spoiler-safe local prior mentions, is documented in [docs/book-api-contract.md](docs/book-api-contract.md). It is a v2 design; v1 remains the active integration contract.
+Version 2 is the source-bound book contract. It accepts clean book-reading fields, prohibits outside knowledge for book entities, and enforces an empty `relatedTerms` list until related-term grounding can be verified. The contract and evaluation evidence are documented in [docs/book-api-contract.md](docs/book-api-contract.md). Version 1 remains available for the existing client during migration.
 
 ## Local checks
 

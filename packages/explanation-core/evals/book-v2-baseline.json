@@ -1,0 +1,103 @@
+{
+  "fixtureVersion": 2,
+  "endpointPath": "/v2/explain/book",
+  "description": "Same public-domain selection set as the v1 baseline, submitted through the source-bound version 2 book contract.",
+  "cases": [
+    {
+      "id": "alice-curiouser-phrase",
+      "source": { "title": "Alice's Adventures in Wonderland", "author": "Lewis Carroll", "location": "Chapter II", "url": "https://www.gutenberg.org/ebooks/11" },
+      "request": {
+        "version": 2,
+        "selection": { "text": "curiouser and curiouser", "kind": "phrase" },
+        "book": { "title": "Alice's Adventures in Wonderland", "author": "Lewis Carroll", "language": "en", "format": "epub" },
+        "reading": { "chapter": { "title": "Chapter II" }, "surroundingText": { "before": "'What a curious feeling!' said Alice; 'I must be shutting up like a telescope.'", "after": "cried Alice." } },
+        "preferences": { "level": "simple" }
+      },
+      "reviewFocus": ["Explain increasingly strange, not increasing curiosity."]
+    },
+    {
+      "id": "pride-darcy-character",
+      "source": { "title": "Pride and Prejudice", "author": "Jane Austen", "location": "Chapter III", "url": "https://www.gutenberg.org/ebooks/1342" },
+      "request": {
+        "version": 2,
+        "selection": { "text": "Mr. Darcy", "kind": "word" },
+        "book": { "title": "Pride and Prejudice", "author": "Jane Austen", "language": "en", "format": "epub" },
+        "reading": { "chapter": { "title": "Chapter III" }, "surroundingText": { "before": "Mr. Darcy followed his advice.", "after": "and Elizabeth remained with no very cordial feelings toward him." } },
+        "preferences": { "level": "simple" }
+      },
+      "reviewFocus": ["Do not use outside information such as Pemberley or a later relationship."]
+    },
+    {
+      "id": "pride-tolerable-dialogue",
+      "source": { "title": "Pride and Prejudice", "author": "Jane Austen", "location": "Chapter III", "url": "https://www.gutenberg.org/ebooks/1342" },
+      "request": {
+        "version": 2,
+        "selection": { "text": "She is tolerable", "kind": "phrase" },
+        "book": { "title": "Pride and Prejudice", "author": "Jane Austen", "language": "en", "format": "epub" },
+        "reading": { "chapter": { "title": "Chapter III" }, "surroundingText": { "before": "Mr. Darcy looked for a moment at Elizabeth and coldly said:", "after": "; but not handsome enough to tempt me." } },
+        "preferences": { "level": "simple" }
+      },
+      "reviewFocus": ["Explain the dismissive judgment and its immediate referent."]
+    },
+    {
+      "id": "frankenstein-plaything-idol-metaphor",
+      "source": { "title": "Frankenstein", "author": "Mary Shelley", "location": "Chapter I", "url": "https://www.gutenberg.org/ebooks/84" },
+      "request": {
+        "version": 2,
+        "selection": { "text": "their plaything and their idol", "kind": "phrase" },
+        "book": { "title": "Frankenstein", "author": "Mary Shelley", "language": "en", "format": "epub" },
+        "reading": { "chapter": { "title": "Chapter I" }, "surroundingText": { "before": "Much as they were attached to each other, they seemed to draw inexhaustible stores of affection to bestow upon me. I was", "after": ", and something better—their child." } },
+        "preferences": { "level": "simple" }
+      },
+      "reviewFocus": ["Explain affection and admiration, not literal ownership or worship."]
+    },
+    {
+      "id": "frankenstein-metaphysical-term",
+      "source": { "title": "Frankenstein", "author": "Mary Shelley", "location": "Chapter II", "url": "https://www.gutenberg.org/ebooks/84" },
+      "request": {
+        "version": 2,
+        "selection": { "text": "the metaphysical", "kind": "phrase" },
+        "book": { "title": "Frankenstein", "author": "Mary Shelley", "language": "en", "format": "epub" },
+        "reading": { "chapter": { "title": "Chapter II" }, "surroundingText": { "before": "Whether it was the outward substance of things or the inner spirit of nature and the mysterious soul of man that occupied me, still my inquiries were directed to", "after": ", or in its highest sense, the physical secrets of the world." } },
+        "preferences": { "level": "simple" }
+      },
+      "reviewFocus": ["Explain the philosophical and scientific sense in this sentence."]
+    },
+    {
+      "id": "frankenstein-clerval-character",
+      "source": { "title": "Frankenstein", "author": "Mary Shelley", "location": "Chapter II", "url": "https://www.gutenberg.org/ebooks/84" },
+      "request": {
+        "version": 2,
+        "selection": { "text": "Clerval", "kind": "word" },
+        "book": { "title": "Frankenstein", "author": "Mary Shelley", "language": "en", "format": "epub" },
+        "reading": { "chapter": { "title": "Chapter II" }, "surroundingText": { "before": "Meanwhile", "after": "occupied himself, so to speak, with the moral relations of things." } },
+        "preferences": { "level": "simple" }
+      },
+      "reviewFocus": ["Do not add an unsupported relationship or later role."]
+    },
+    {
+      "id": "sherlock-game-is-afoot-idiom",
+      "source": { "title": "The Adventure of the Abbey Grange", "author": "Arthur Conan Doyle", "location": "Opening paragraph", "url": "https://www.gutenberg.org/ebooks/15466" },
+      "request": {
+        "version": 2,
+        "selection": { "text": "The game is afoot", "kind": "phrase" },
+        "book": { "title": "Victorian Short Stories of Troubled Marriages", "author": "Arthur Conan Doyle", "language": "en", "format": "epub" },
+        "reading": { "chapter": { "title": "The Adventure of the Abbey Grange" }, "surroundingText": { "before": "It was Holmes. The candle in his hand shone upon his eager face. 'Come, Watson, come!' he cried.", "after": ". Not a word! Into your clothes and come!" } },
+        "preferences": { "level": "simple" }
+      },
+      "reviewFocus": ["Explain the urgent idiom without external character lore."]
+    },
+    {
+      "id": "sherlock-opalescent-reek-description",
+      "source": { "title": "The Adventure of the Abbey Grange", "author": "Arthur Conan Doyle", "location": "Opening paragraph", "url": "https://www.gutenberg.org/ebooks/15466" },
+      "request": {
+        "version": 2,
+        "selection": { "text": "opalescent London reek", "kind": "phrase" },
+        "book": { "title": "Victorian Short Stories of Troubled Marriages", "author": "Arthur Conan Doyle", "language": "en", "format": "epub" },
+        "reading": { "chapter": { "title": "The Adventure of the Abbey Grange" }, "surroundingText": { "before": "The first faint winter's dawn was beginning to appear, and we could dimly see the occasional figure of an early workman as he passed us, blurred and indistinct in the", "after": "." } },
+        "preferences": { "level": "simple" }
+      },
+      "reviewFocus": ["Explain smoky/foggy air and reduced visibility."]
+    }
+  ]
+}

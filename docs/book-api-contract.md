@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed for the next book-contract version. `POST /v1/explain/book` remains supported as the first KOReader integration while this contract is evaluated.
+Implemented and evaluated on 2026-08-28. `POST /v1/explain/book` remains supported as the first KOReader integration while clients migrate.
 
 ## Endpoint
 
@@ -75,6 +75,8 @@ The Worker treats every selected passage and excerpt as untrusted quoted text. T
 
 Chapter title is helpful orientation, not authorization to infer chapter events that are not in the excerpts.
 
+The service also enforces an empty `relatedTerms` array for every source-bound version 2 response. This is deliberately stricter than prompting alone: live evaluation showed that the model could otherwise add unsupported book lore as related terms.
+
 ## Response
 
 Keep the v1 response shape for the first v2 iteration:
@@ -90,7 +92,7 @@ Keep the v1 response shape for the first v2 iteration:
 }
 ```
 
-No `entityType` or confidence score is returned initially. The interface only needs a useful explanation, and an unsupported classification would create false certainty. We can add explicit entity metadata only after evaluating real book selections.
+No `entityType` or confidence score is returned initially. `relatedTerms` is intentionally always empty for source-bound version 2 responses: the service enforces this after model generation rather than trusting the model to distinguish supported terms from book lore. We can restore grounded related terms only after adding verifiable local evidence extraction.
 
 ## Future local enrichment: prior mentions
 

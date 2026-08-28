@@ -1,6 +1,8 @@
 import {
   EXPLANATION_CONTRACT_VERSION,
   BOOK_EXPLANATION_CONTRACT_VERSION,
+  BOOK_EXPLANATION_V2_CONTRACT_VERSION,
+  isBookExplainV2Request,
   WEB_EXPLANATION_CONTRACT_VERSION,
   isBookExplainRequest,
   isExplainRequest,
@@ -52,6 +54,11 @@ const EXPLAIN_ROUTES: Record<string, ExplainRoute> = {
     version: BOOK_EXPLANATION_CONTRACT_VERSION,
     accepts: isBookExplainRequest,
     normalize: normalizeBookRequest,
+  },
+  '/v2/explain/book': {
+    version: BOOK_EXPLANATION_V2_CONTRACT_VERSION,
+    accepts: isBookExplainV2Request,
+    normalize: normalizeBookV2Request,
   },
 };
 
@@ -190,6 +197,14 @@ function normalizeWebRequest(value: unknown): ExplanationInput {
 function normalizeBookRequest(value: unknown): ExplanationInput {
   if (!isBookExplainRequest(value)) {
     throw new Error('Invalid book request passed to route normalization.');
+  }
+
+  return toExplanationInput(value);
+}
+
+function normalizeBookV2Request(value: unknown): ExplanationInput {
+  if (!isBookExplainV2Request(value)) {
+    throw new Error('Invalid version 2 book request passed to route normalization.');
   }
 
   return toExplanationInput(value);

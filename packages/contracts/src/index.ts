@@ -1,6 +1,7 @@
 export const EXPLANATION_CONTRACT_VERSION = 6 as const;
 export const WEB_EXPLANATION_CONTRACT_VERSION = 1 as const;
 export const BOOK_EXPLANATION_CONTRACT_VERSION = 1 as const;
+export const BOOK_EXPLANATION_V2_CONTRACT_VERSION = 2 as const;
 
 export const EXPLANATION_LEVELS = ['simple', 'beginner', 'detailed'] as const;
 export type ExplanationLevel = (typeof EXPLANATION_LEVELS)[number];
@@ -49,10 +50,30 @@ export type BookExplainRequest = {
   preferences: ExplainRequest['preferences'];
 };
 
+export type BookExplainV2Request = {
+  version: typeof BOOK_EXPLANATION_V2_CONTRACT_VERSION;
+  selection: {
+    text: string;
+    kind: 'word' | 'phrase' | 'passage';
+  };
+  book: BookExplainRequest['book'];
+  reading: {
+    chapter?: { title: string };
+    surroundingText: {
+      before: string;
+      after: string;
+    };
+    priorMentions?: Array<{ text: string }>;
+  };
+  preferences: ExplainRequest['preferences'];
+};
+
 export type ExplanationInput = {
   selection: {
     selectedText: string;
-    context: ExplanationSelectionSnapshot['context'];
+    context: ExplanationSelectionSnapshot['context'] & {
+      priorMentions?: string[];
+    };
   };
   document: {
     kind: 'web' | 'book';
@@ -61,6 +82,7 @@ export type ExplanationInput = {
     author?: string;
     language?: string;
     format?: string;
+    grounding?: 'source-bound';
   };
   preferences: ExplainRequest['preferences'];
 };
@@ -129,6 +151,9 @@ const LIMITS = {
   relatedTerm: 200,
   relatedTerms: 5,
   requestId: 200,
+  bookContextSide: 450,
+  priorMention: 300,
+  priorMentions: 3,
 } as const;
 
 export function isExplainRequest(value: unknown): value is ExplainRequest {
@@ -177,9 +202,79 @@ export function isBookExplainRequest(value: unknown): value is BookExplainReques
   );
 }
 
+export function isBookExplainV2Request(value: unknown): value is BookExplainV2Request {
+  if (
+    !isRecord(value) ||
+    value.version !== BOOK_EXPLANATION_V2_CONTRACT_VERSION ||
+    !hasExactlyKeys(value, ['version', 'selection', 'book', 'reading', 'preferences'])
+  ) {
+    return false;
+  }
+
+  const selection = value.selection;
+  const book = value.book;
+  const reading = value.reading;
+  const preferences = value.preferences;
+
+  if (
+    !isRecord(selection) ||
+    !hasExactlyKeys(selection, ['text', 'kind']) ||
+    !isRecord(book) ||
+    !hasOnlyKeys(book, ['title', 'author', 'language', 'format']) ||
+    !isRecord(reading) ||
+    !hasOnlyKeys(reading, ['chapter', 'surroundingText', 'priorMentions']) ||
+    !isRecord(preferences) ||
+    !hasOnlyKeys(preferences, ['level', 'responseLanguage'])
+  ) {
+    return false;
+  }
+
+  return (
+    isBoundedString(selection.text, 1, LIMITS.selectedText) &&
+    ['word', 'phrase', 'passage'].includes(selection.kind as string) &&
+    isBoundedString(book.title, 0, LIMITS.pageTitle) &&
+    isOptionalBoundedString(book.author, LIMITS.pageTitle) &&
+    isOptionalBoundedString(book.language, LIMITS.language) &&
+    isOptionalBoundedString(book.format, LIMITS.language) &&
+    isValidBookReadingContext(reading) &&
+    isValidPreferences(preferences)
+  );
+}
+
 export function toExplanationInput(
-  request: ExplainRequest | WebExplainRequest | BookExplainRequest,
+  request: ExplainRequest | WebExplainRequest | BookExplainRequest | BookExplainV2Request,
 ): ExplanationInput {
+  if ('reading' in request) {
+    const before = request.reading.surroundingText.before;
+    const after = request.reading.surroundingText.after;
+    const immediate = [before, request.selection.text, after].filter((value) => value.length > 0).join(' ');
+
+    return {
+      selection: {
+        selectedText: request.selection.text,
+        context: {
+          immediate,
+          containingBlock: immediate,
+          before,
+          after,
+          ...(request.reading.chapter === undefined ? {} : { heading: request.reading.chapter.title }),
+          ...(request.reading.priorMentions === undefined
+            ? {}
+            : { priorMentions: request.reading.priorMentions.map((mention) => mention.text) }),
+        },
+      },
+      document: {
+        kind: 'book',
+        title: request.book.title,
+        grounding: 'source-bound',
+        ...(request.book.author === undefined ? {} : { author: request.book.author }),
+        ...(request.book.language === undefined ? {} : { language: request.book.language }),
+        ...(request.book.format === undefined ? {} : { format: request.book.format }),
+      },
+      preferences: request.preferences,
+    };
+  }
+
   if ('book' in request) {
     return {
       selection: request.selection,
@@ -294,6 +389,32 @@ function isValidSelectionContext(value: Record<string, unknown>): boolean {
     isOptionalBoundedString(value.heading, LIMITS.contextBlock) &&
     isOptionalBoundedString(value.before, LIMITS.contextBlock) &&
     isOptionalBoundedString(value.after, LIMITS.contextBlock)
+  );
+}
+
+function isValidBookReadingContext(value: Record<string, unknown>): boolean {
+  const surroundingText = value.surroundingText;
+  const chapter = value.chapter;
+  const priorMentions = value.priorMentions;
+
+  return (
+    isRecord(surroundingText) &&
+    hasExactlyKeys(surroundingText, ['before', 'after']) &&
+    isBoundedString(surroundingText.before, 0, LIMITS.bookContextSide) &&
+    isBoundedString(surroundingText.after, 0, LIMITS.bookContextSide) &&
+    (chapter === undefined ||
+      (isRecord(chapter) &&
+        hasExactlyKeys(chapter, ['title']) &&
+        isBoundedString(chapter.title, 1, LIMITS.pageTitle))) &&
+    (priorMentions === undefined ||
+      (Array.isArray(priorMentions) &&
+        priorMentions.length <= LIMITS.priorMentions &&
+        priorMentions.every(
+          (mention) =>
+            isRecord(mention) &&
+            hasExactlyKeys(mention, ['text']) &&
+            isBoundedString(mention.text, 1, LIMITS.priorMention),
+        )))
   );
 }
 

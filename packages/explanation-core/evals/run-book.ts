@@ -1,38 +1,15 @@
 import { readFile, writeFile } from 'node:fs/promises';
 
-type BookRequest = {
-  version: 1;
-  selection: {
-    selectedText: string;
-    context: {
-      immediate: string;
-      containingBlock: string;
-      before?: string;
-      after?: string;
-      heading?: string;
-    };
-  };
-  book: {
-    title: string;
-    author?: string;
-    language?: string;
-    format?: string;
-  };
-  preferences: {
-    level: 'simple' | 'beginner' | 'detailed';
-    responseLanguage?: string;
-  };
-};
-
 type FixtureCase = {
   id: string;
   source: { title: string; author: string; location: string; url: string };
-  request: BookRequest;
+  request: unknown;
   reviewFocus: string[];
 };
 
 type Fixture = {
   fixtureVersion: number;
+  endpointPath: '/v1/explain/book' | '/v2/explain/book';
   description: string;
   cases: FixtureCase[];
 };
@@ -52,7 +29,7 @@ const results: unknown[] = [];
 
 for (const [index, evaluationCase] of fixture.cases.entries()) {
   const startedAt = performance.now();
-  const response = await fetch(new URL('/v1/explain/book', endpoint), {
+  const response = await fetch(new URL(fixture.endpointPath, endpoint), {
     method: 'POST',
     headers: {
       'content-type': 'application/json',

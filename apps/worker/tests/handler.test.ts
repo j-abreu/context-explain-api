@@ -1,6 +1,7 @@
 import {
   EXPLANATION_CONTRACT_VERSION,
   BOOK_EXPLANATION_CONTRACT_VERSION,
+  BOOK_EXPLANATION_V2_CONTRACT_VERSION,
   WEB_EXPLANATION_CONTRACT_VERSION,
   toExplanationInput,
   type ExplainRequest,
@@ -80,6 +81,29 @@ describe('Cloudflare Worker API', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ version: BOOK_EXPLANATION_CONTRACT_VERSION });
     expect(provider.explain).toHaveBeenCalledWith(toExplanationInput(request));
+  });
+
+  it('accepts the source-bound version 2 book contract', async () => {
+    const provider: ExplanationProvider = {
+      explain: vi.fn().mockResolvedValue({ explanation: 'Book explanation.', relatedTerms: [] }),
+    };
+    const request = createBookV2Request();
+    const response = await handleRequest(explainRequest(request, '/v2/explain/book'), {
+      provider,
+      rateLimiter: allowAll(),
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ version: BOOK_EXPLANATION_V2_CONTRACT_VERSION });
+    expect(provider.explain).toHaveBeenCalledWith(
+      expect.objectContaining({
+        selection: expect.objectContaining({
+          selectedText: 'Mira',
+          context: expect.objectContaining({ priorMentions: ['Mira kept the lighthouse key.'] }),
+        }),
+        document: expect.objectContaining({ kind: 'book', grounding: 'source-bound' }),
+      }),
+    );
   });
 
   it('rejects malformed and oversized requests before inference', async () => {
@@ -183,5 +207,19 @@ function createRequest(): ExplainRequest {
       },
     },
     preferences: { level: 'simple' },
+  };
+}
+
+function createBookV2Request() {
+  return {
+    version: BOOK_EXPLANATION_V2_CONTRACT_VERSION,
+    selection: { text: 'Mira', kind: 'word' as const },
+    book: { title: 'Harbor Lights', author: 'A. Reader', language: 'en', format: 'epub' },
+    reading: {
+      chapter: { title: 'Chapter 3' },
+      surroundingText: { before: 'Before', after: 'after.' },
+      priorMentions: [{ text: 'Mira kept the lighthouse key.' }],
+    },
+    preferences: { level: 'simple' as const },
   };
 }

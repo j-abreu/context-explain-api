@@ -1,4 +1,5 @@
 import {
+  BOOK_EXPLANATION_V2_CONTRACT_VERSION,
   EXPLANATION_CONTRACT_VERSION,
   toExplanationInput,
   type ExplanationInput,
@@ -88,6 +89,19 @@ describe('Workers AI provider', () => {
     expect(input.messages[0]?.content).not.toContain("Explain Like I'm 5");
     expect(input.max_tokens).toBe(500);
   });
+
+  it('removes related terms from source-bound book responses', async () => {
+    const provider = createWorkersAiExplanationProvider({
+      run: vi.fn().mockResolvedValue({
+        response: structured('Mira is mentioned walking toward the lighthouse.', ['Pemberley']),
+      }),
+    });
+
+    await expect(provider.explain(createSourceBoundBookRequest())).resolves.toEqual({
+      explanation: 'Mira is mentioned walking toward the lighthouse.',
+      relatedTerms: [],
+    });
+  });
 });
 
 function createRequest(
@@ -111,6 +125,16 @@ function createRequest(
   });
 }
 
-function structured(explanation: string) {
-  return { explanation, relatedTerms: [] };
+function structured(explanation: string, relatedTerms: string[] = []) {
+  return { explanation, relatedTerms };
+}
+
+function createSourceBoundBookRequest(): ExplanationInput {
+  return toExplanationInput({
+    version: BOOK_EXPLANATION_V2_CONTRACT_VERSION,
+    selection: { text: 'Mira', kind: 'word' },
+    book: { title: 'Harbor Lights', language: 'en' },
+    reading: { surroundingText: { before: '', after: 'walked toward the lighthouse.' } },
+    preferences: { level: 'simple' },
+  });
 }

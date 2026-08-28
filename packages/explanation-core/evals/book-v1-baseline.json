@@ -1,5 +1,6 @@
 {
   "fixtureVersion": 1,
+  "endpointPath": "/v1/explain/book",
   "description": "Public-domain book-context baseline for POST /v1/explain/book. Cases use only immediate context; they intentionally do not include prior mentions.",
   "cases": [
     {
