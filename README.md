@@ -21,7 +21,9 @@ The existing `POST /explain` contract is retained as the browser compatibility r
 
 `/v1/explain/web` accepts web-page context. `/v1/explain/book` accepts book title, optional author, language, and format alongside the selected passage and reading context. Both are normalized into the same internal explanation input before the prompt and provider run.
 
-Do not deploy this extracted Worker until its Cloudflare bindings and public endpoint have been reviewed. The currently deployed `i-dont-get-it-api` Worker remains the live service during this migration.
+The Worker is deployed at `https://context-explain-api.jere-lab.workers.dev`. The former `i-dont-get-it-api` Worker has been retired.
+
+The proposed richer book contract, including spoiler-safe local prior mentions, is documented in [docs/book-api-contract.md](docs/book-api-contract.md). It is a v2 design; v1 remains the active integration contract.
 
 ## Local checks
 
