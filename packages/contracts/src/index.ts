@@ -153,7 +153,7 @@ const LIMITS = {
   requestId: 200,
   bookContextSide: 450,
   priorMention: 300,
-  priorMentions: 3,
+  priorMentions: 5,
 } as const;
 
 export function isExplainRequest(value: unknown): value is ExplainRequest {

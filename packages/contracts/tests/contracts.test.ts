@@ -64,9 +64,15 @@ describe('explanation contracts', () => {
     expect(
       isBookExplainV2Request({
         ...createBookV2Request(),
-        reading: { ...createBookV2Request().reading, priorMentions: Array(4).fill({ text: 'Too many.' }) },
+        reading: { ...createBookV2Request().reading, priorMentions: Array(6).fill({ text: 'Too many.' }) },
       }),
     ).toBe(false);
+    expect(
+      isBookExplainV2Request({
+        ...createBookV2Request(),
+        reading: { ...createBookV2Request().reading, priorMentions: Array(5).fill({ text: 'Earlier context.' }) },
+      }),
+    ).toBe(true);
   });
 
   it('distinguishes valid success and error responses', () => {
