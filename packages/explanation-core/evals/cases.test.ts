@@ -62,6 +62,7 @@ describe('explanation evaluation corpus', () => {
 
     expect(prompt.instructions).toContain('Do not use general knowledge');
     expect(prompt.instructions).not.toContain('may be identified using stable general knowledge');
+    expect(prompt.instructions).toContain("briefly identify the character's role in the current moment");
     expect(JSON.parse(prompt.input)).toMatchObject({
       context: { priorMentions: ['Mira kept the lighthouse key.'] },
     });

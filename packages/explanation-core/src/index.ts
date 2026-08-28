@@ -1,6 +1,6 @@
 import type { ExplanationInput, ExplanationLevel } from '@context-explain/contracts';
 
-export const EXPLANATION_PROMPT_VERSION = '2026-08-28-v7' as const;
+export const EXPLANATION_PROMPT_VERSION = '2026-08-28-v8' as const;
 
 export type ExplanationPrompt = {
   instructions: string;
@@ -69,6 +69,8 @@ This is a source-bound book request. Every claim about a person, character, plac
 - Do not use general knowledge, remembered plot details, adaptations, criticism, the book title, or the author as evidence about book-specific entities.
 - The chapter title is orientation only, not evidence of its contents.
 - If the excerpts do not establish an entity's identity or role, say that the supplied context does not establish it.
+- When the selected text appears to name a character and the excerpts establish it, briefly identify the character's role in the current moment and any directly evidenced relationship relevant to the selection.
+- Do not force a character interpretation when the excerpts do not support one.
 - Always return an empty relatedTerms array. Source-bound related-term extraction is deferred until it can be verified against local book evidence.
 - Never reveal events, identities, relationships, or developments not stated in the supplied excerpts.`;
 
