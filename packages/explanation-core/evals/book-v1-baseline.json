@@ -1,0 +1,270 @@
+{
+  "fixtureVersion": 1,
+  "description": "Public-domain book-context baseline for POST /v1/explain/book. Cases use only immediate context; they intentionally do not include prior mentions.",
+  "cases": [
+    {
+      "id": "alice-curiouser-phrase",
+      "source": {
+        "title": "Alice's Adventures in Wonderland",
+        "author": "Lewis Carroll",
+        "location": "Chapter II",
+        "url": "https://www.gutenberg.org/ebooks/11"
+      },
+      "request": {
+        "version": 1,
+        "selection": {
+          "selectedText": "curiouser and curiouser",
+          "context": {
+            "immediate": "'Curiouser and curiouser!' cried Alice.",
+            "containingBlock": "'What a curious feeling!' said Alice; 'I must be shutting up like a telescope.' 'Curiouser and curiouser!' cried Alice.",
+            "before": "'What a curious feeling!' said Alice; 'I must be shutting up like a telescope.'",
+            "after": "cried Alice.",
+            "heading": "Chapter II"
+          }
+        },
+        "book": {
+          "title": "Alice's Adventures in Wonderland",
+          "author": "Lewis Carroll",
+          "language": "en",
+          "format": "epub"
+        },
+        "preferences": { "level": "simple" }
+      },
+      "reviewFocus": [
+        "Explain the playful comparative phrase as meaning increasingly strange.",
+        "Do not treat it as a factual technical word."
+      ]
+    },
+    {
+      "id": "pride-darcy-character",
+      "source": {
+        "title": "Pride and Prejudice",
+        "author": "Jane Austen",
+        "location": "Chapter III",
+        "url": "https://www.gutenberg.org/ebooks/1342"
+      },
+      "request": {
+        "version": 1,
+        "selection": {
+          "selectedText": "Mr. Darcy",
+          "context": {
+            "immediate": "Mr. Darcy walked off; and Elizabeth remained with no very cordial feelings toward him.",
+            "containingBlock": "Mr. Darcy followed his advice. Mr. Darcy walked off; and Elizabeth remained with no very cordial feelings toward him.",
+            "before": "Mr. Darcy followed his advice.",
+            "after": "and Elizabeth remained with no very cordial feelings toward him.",
+            "heading": "Chapter III"
+          }
+        },
+        "book": {
+          "title": "Pride and Prejudice",
+          "author": "Jane Austen",
+          "language": "en",
+          "format": "epub"
+        },
+        "preferences": { "level": "simple" }
+      },
+      "reviewFocus": [
+        "Identify only the man at the ball whose remark has upset Elizabeth.",
+        "Flag any later relationship or plot knowledge as a spoiler failure."
+      ]
+    },
+    {
+      "id": "pride-tolerable-dialogue",
+      "source": {
+        "title": "Pride and Prejudice",
+        "author": "Jane Austen",
+        "location": "Chapter III",
+        "url": "https://www.gutenberg.org/ebooks/1342"
+      },
+      "request": {
+        "version": 1,
+        "selection": {
+          "selectedText": "She is tolerable",
+          "context": {
+            "immediate": "'She is tolerable; but not handsome enough to tempt me.'",
+            "containingBlock": "Mr. Darcy looked for a moment at Elizabeth and coldly said: 'She is tolerable; but not handsome enough to tempt me.'",
+            "before": "Mr. Darcy looked for a moment at Elizabeth and coldly said:",
+            "after": "; but not handsome enough to tempt me.",
+            "heading": "Chapter III"
+          }
+        },
+        "book": {
+          "title": "Pride and Prejudice",
+          "author": "Jane Austen",
+          "language": "en",
+          "format": "epub"
+        },
+        "preferences": { "level": "simple" }
+      },
+      "reviewFocus": [
+        "Explain the dismissive social judgment and who 'she' refers to.",
+        "Keep the focus on the selected phrase rather than summarizing the novel."
+      ]
+    },
+    {
+      "id": "frankenstein-plaything-idol-metaphor",
+      "source": {
+        "title": "Frankenstein",
+        "author": "Mary Shelley",
+        "location": "Chapter I",
+        "url": "https://www.gutenberg.org/ebooks/84"
+      },
+      "request": {
+        "version": 1,
+        "selection": {
+          "selectedText": "their plaything and their idol",
+          "context": {
+            "immediate": "I was their plaything and their idol, and something better—their child.",
+            "containingBlock": "Much as they were attached to each other, they seemed to draw inexhaustible stores of affection to bestow upon me. I was their plaything and their idol, and something better—their child.",
+            "before": "Much as they were attached to each other, they seemed to draw inexhaustible stores of affection to bestow upon me. I was",
+            "after": ", and something better—their child.",
+            "heading": "Chapter I"
+          }
+        },
+        "book": {
+          "title": "Frankenstein",
+          "author": "Mary Shelley",
+          "language": "en",
+          "format": "epub"
+        },
+        "preferences": { "level": "simple" }
+      },
+      "reviewFocus": [
+        "Explain the parents' affectionate treatment, not literal ownership or worship.",
+        "Preserve the narrator's contrast with 'their child'."
+      ]
+    },
+    {
+      "id": "frankenstein-metaphysical-term",
+      "source": {
+        "title": "Frankenstein",
+        "author": "Mary Shelley",
+        "location": "Chapter II",
+        "url": "https://www.gutenberg.org/ebooks/84"
+      },
+      "request": {
+        "version": 1,
+        "selection": {
+          "selectedText": "the metaphysical",
+          "context": {
+            "immediate": "My inquiries were directed to the metaphysical, or in its highest sense, the physical secrets of the world.",
+            "containingBlock": "Whether it was the outward substance of things or the inner spirit of nature and the mysterious soul of man that occupied me, still my inquiries were directed to the metaphysical, or in its highest sense, the physical secrets of the world.",
+            "before": "Whether it was the outward substance of things or the inner spirit of nature and the mysterious soul of man that occupied me, still my inquiries were directed to",
+            "after": ", or in its highest sense, the physical secrets of the world.",
+            "heading": "Chapter II"
+          }
+        },
+        "book": {
+          "title": "Frankenstein",
+          "author": "Mary Shelley",
+          "language": "en",
+          "format": "epub"
+        },
+        "preferences": { "level": "simple" }
+      },
+      "reviewFocus": [
+        "Explain the philosophical and scientific sense intended in this nineteenth-century context.",
+        "Do not overstate the novel's later developments."
+      ]
+    },
+    {
+      "id": "frankenstein-clerval-character",
+      "source": {
+        "title": "Frankenstein",
+        "author": "Mary Shelley",
+        "location": "Chapter II",
+        "url": "https://www.gutenberg.org/ebooks/84"
+      },
+      "request": {
+        "version": 1,
+        "selection": {
+          "selectedText": "Clerval",
+          "context": {
+            "immediate": "Meanwhile Clerval occupied himself with the moral relations of things.",
+            "containingBlock": "Meanwhile Clerval occupied himself, so to speak, with the moral relations of things. The busy stage of life, the virtues of heroes, and the actions of men were his theme.",
+            "before": "Meanwhile",
+            "after": "occupied himself, so to speak, with the moral relations of things.",
+            "heading": "Chapter II"
+          }
+        },
+        "book": {
+          "title": "Frankenstein",
+          "author": "Mary Shelley",
+          "language": "en",
+          "format": "epub"
+        },
+        "preferences": { "level": "simple" }
+      },
+      "reviewFocus": [
+        "Describe only the companion's interests established here, or state that identity is not fully established.",
+        "Any later role or fate is a spoiler failure."
+      ]
+    },
+    {
+      "id": "sherlock-game-is-afoot-idiom",
+      "source": {
+        "title": "The Adventure of the Abbey Grange",
+        "author": "Arthur Conan Doyle",
+        "location": "Opening paragraph",
+        "url": "https://www.gutenberg.org/ebooks/15466"
+      },
+      "request": {
+        "version": 1,
+        "selection": {
+          "selectedText": "The game is afoot",
+          "context": {
+            "immediate": "'Come, Watson, come!' he cried. The game is afoot. Not a word! Into your clothes and come!",
+            "containingBlock": "It was Holmes. The candle in his hand shone upon his eager face. 'Come, Watson, come!' he cried. The game is afoot. Not a word! Into your clothes and come!",
+            "before": "'Come, Watson, come!' he cried.",
+            "after": ". Not a word! Into your clothes and come!",
+            "heading": "The Adventure of the Abbey Grange"
+          }
+        },
+        "book": {
+          "title": "Victorian Short Stories of Troubled Marriages",
+          "author": "Arthur Conan Doyle",
+          "language": "en",
+          "format": "epub"
+        },
+        "preferences": { "level": "simple" }
+      },
+      "reviewFocus": [
+        "Explain that Holmes means an urgent investigation/action has begun.",
+        "Do not interpret it as a literal sports game."
+      ]
+    },
+    {
+      "id": "sherlock-opalescent-reek-description",
+      "source": {
+        "title": "The Adventure of the Abbey Grange",
+        "author": "Arthur Conan Doyle",
+        "location": "Opening paragraph",
+        "url": "https://www.gutenberg.org/ebooks/15466"
+      },
+      "request": {
+        "version": 1,
+        "selection": {
+          "selectedText": "opalescent London reek",
+          "context": {
+            "immediate": "We could dimly see the occasional figure of an early workman as he passed us, blurred and indistinct in the opalescent London reek.",
+            "containingBlock": "The first faint winter's dawn was beginning to appear, and we could dimly see the occasional figure of an early workman as he passed us, blurred and indistinct in the opalescent London reek.",
+            "before": "The first faint winter's dawn was beginning to appear, and we could dimly see the occasional figure of an early workman as he passed us, blurred and indistinct in the",
+            "after": ".",
+            "heading": "The Adventure of the Abbey Grange"
+          }
+        },
+        "book": {
+          "title": "Victorian Short Stories of Troubled Marriages",
+          "author": "Arthur Conan Doyle",
+          "language": "en",
+          "format": "epub"
+        },
+        "preferences": { "level": "simple" }
+      },
+      "reviewFocus": [
+        "Explain that this is London fog/smog with a milky, shifting, colored appearance.",
+        "Connect it to the reduced visibility in the sentence."
+      ]
+    }
+  ]
+}

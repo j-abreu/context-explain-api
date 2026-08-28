@@ -8,6 +8,7 @@
   },
   "scripts": {
     "eval": "tsx evals/run.ts",
+    "eval:book": "tsx evals/run-book.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
