@@ -1,6 +1,6 @@
 import type { ExplanationInput, ExplanationLevel } from '@context-explain/contracts';
 
-export const EXPLANATION_PROMPT_VERSION = '2026-08-28-v9' as const;
+export const EXPLANATION_PROMPT_VERSION = '2026-08-28-v10' as const;
 
 export type ExplanationPrompt = {
   instructions: string;
@@ -13,7 +13,7 @@ const LEVEL_GUIDANCE: Record<ExplanationLevel, { guidance: string; maxOutputToke
   simple: {
     guidance: [
       'Use plain language and ordinary vocabulary.',
-      'Keep the explanation to one or two clear sentences.',
+      'Keep the explanation concise and focused; use only the detail needed to make the passage clear in context.',
       'Include only what the reader needs to understand the passage here.',
     ].join(' '),
     maxOutputTokens: 420,
