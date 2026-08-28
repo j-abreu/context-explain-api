@@ -1,0 +1,11 @@
+node_modules/
+.output/
+.wxt/
+coverage/
+dist/
+.DS_Store
+.env
+.env.*
+!.env.example
+!apps/extension/.env.development
+!apps/extension/.env.production

@@ -1,0 +1,16 @@
+{
+  "name": "context-explain-api-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Workspace for the shared contextual-explanation API.",
+  "packageManager": "pnpm@11.19.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev:worker": "pnpm --filter @context-explain/worker dev",
+    "build": "pnpm -r --if-present run build",
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "test": "pnpm -r --if-present run test"
+  }
+}
