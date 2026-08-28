@@ -1,13 +1,5 @@
-import { handleRequest, type ExplainRateLimiter } from './handler.js';
-import {
-  createWorkersAiExplanationProvider,
-  type WorkersAiBinding,
-} from './provider.js';
-
-interface Env {
-  AI: WorkersAiBinding;
-  EXPLAIN_RATE_LIMITER: ExplainRateLimiter;
-}
+import { handleRequest } from './handler.js';
+import { createWorkersAiExplanationProvider } from './provider.js';
 
 export default {
   fetch(request: Request, env: Env): Promise<Response> {
