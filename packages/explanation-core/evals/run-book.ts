@@ -9,7 +9,7 @@ type FixtureCase = {
 
 type Fixture = {
   fixtureVersion: number;
-  endpointPath: '/v1/explain/book' | '/v2/explain/book';
+  endpointPath: '/v1/explain/book' | '/v2/explain/book' | '/v3/explain/book';
   description: string;
   cases: FixtureCase[];
 };
