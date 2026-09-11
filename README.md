@@ -1,40 +1,38 @@
 # Context Explain API
 
-Cloudflare Worker API for contextual explanations. It is shared infrastructure for reader-facing clients, beginning with the `i-dont-get-it` browser extension and KOReader Explain.
+Cloudflare Worker API for contextual explanations, shared by reader-facing clients including KOReader Explain.
 
-## Ownership
+## Current state
 
-- `apps/worker` is the production Cloudflare Workers / Workers AI service.
-- `packages/contracts` owns versioned HTTP contracts and validation.
-- `packages/explanation-core` owns the provider-neutral prompt builder and evaluation corpus.
+The Worker is deployed at `https://context-explain-api.jere-lab.workers.dev` and owns versioned contracts, prompt behavior, Workers AI integration, rate limiting, and observability.
 
-Client repositories own their UI, client-side request mapping, and release process. This repository owns the API contract, model/provider behavior, deployment, rate limits, and service observability.
+- Compatibility routes remain available at `POST /explain`, `POST /v1/explain/web`, and `POST /v1/explain/book`.
+- `POST /v2/explain/book` and `POST /v3/explain/book` provide source-bound book explanations with bounded reading context.
+- Feature 04 uses `POST /v4/explain/book` for an initial answer-or-search decision and `POST /v4/explain/book/complete` for a final explanation after client-side retrieval.
+- v4 permits one to three bounded client-side search queries; it never performs book retrieval in the Worker.
+- v4 returns related terms only for a lowercase one-word ordinary concept. Phrases, passages, situations, proper names, and book-specific terms return an empty list.
 
-## API direction
+`apps/worker` is the production Worker, `packages/contracts` owns HTTP validation, and `packages/explanation-core` owns provider-neutral prompts and evaluations.
 
-The existing `POST /explain` contract is retained as the browser compatibility route during migration. The Worker also exposes client-specific, versioned paths:
+## Build, test, and deploy
 
-- `POST /v1/explain/web`
-- `POST /v1/explain/book`
-- `POST /v2/explain/book`
-
-`book` describes the document domain rather than a particular reader application. KOReader is the first book client.
-
-`/v1/explain/web` accepts web-page context. `/v1/explain/book` accepts book title, optional author, language, and format alongside the selected passage and reading context. Both are normalized into the same internal explanation input before the prompt and provider run.
-
-The Worker is deployed at `https://context-explain-api.jere-lab.workers.dev`. The former `i-dont-get-it-api` Worker has been retired.
-
-Version 2 is the source-bound book contract. It accepts clean book-reading fields, prohibits outside knowledge for book entities, and enforces an empty `relatedTerms` list until related-term grounding can be verified. The contract and evaluation evidence are documented in [docs/book-api-contract.md](docs/book-api-contract.md). Version 1 remains available for the existing client during migration.
-
-## Local checks
+Requires Node.js 22+ and pnpm 11.
 
 ```sh
 pnpm install
-pnpm typecheck
 pnpm test
-pnpm --filter @context-explain/worker build
+pnpm typecheck
+pnpm --filter @context-explain/worker run build
 ```
 
-## Migration source
+Deploy after the checks pass:
 
-This repository was extracted from `i-dont-get-it` at commit `d03414a` on 2026-08-28. The next migration step is to make this repository the sole source of truth for the Worker deployment, then update each client deliberately.
+```sh
+pnpm --filter @context-explain/worker run deploy
+```
+
+The deployment uses configured Cloudflare bindings for Workers AI and rate limiting. Do not place provider credentials in a client repository.
+
+## Ownership
+
+Client repositories own their UI, local context/retrieval behavior, and release process. This repository owns API contracts, model/provider behavior, deployment, and service observability.
