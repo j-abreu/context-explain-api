@@ -2,6 +2,7 @@ import {
   EXPLANATION_CONTRACT_VERSION,
   BOOK_EXPLANATION_CONTRACT_VERSION,
   BOOK_EXPLANATION_V2_CONTRACT_VERSION,
+  BOOK_EXPLANATION_V3_CONTRACT_VERSION,
   WEB_EXPLANATION_CONTRACT_VERSION,
   toExplanationInput,
   type ExplainRequest,
@@ -104,6 +105,17 @@ describe('Cloudflare Worker API', () => {
         document: expect.objectContaining({ kind: 'book', grounding: 'source-bound' }),
       }),
     );
+  });
+
+  it('accepts and normalizes sentence-aware version 3 book context', async () => {
+    const provider: ExplanationProvider = { explain: vi.fn().mockResolvedValue({ explanation: 'Book explanation.', relatedTerms: [] }) };
+    const request = createBookV3Request();
+    const response = await handleRequest(explainRequest(request, '/v3/explain/book'), { provider, rateLimiter: allowAll() });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ version: BOOK_EXPLANATION_V3_CONTRACT_VERSION });
+    expect(provider.explain).toHaveBeenCalledWith(expect.objectContaining({ selection: expect.objectContaining({
+      context: expect.objectContaining({ immediate: 'The wind had grown colder as Mira walked toward the lighthouse.', before: 'The harbor was already dark.', after: 'Behind her, the last shop closed.', captureStrategy: 'sentence' }),
+    }) }));
   });
 
   it('rejects malformed and oversized requests before inference', async () => {
@@ -221,5 +233,18 @@ function createBookV2Request() {
       priorMentions: [{ text: 'Mira kept the lighthouse key.' }],
     },
     preferences: { level: 'simple' as const },
+  };
+}
+
+function createBookV3Request() {
+  return {
+    version: BOOK_EXPLANATION_V3_CONTRACT_VERSION,
+    selection: { text: 'Mira', kind: 'word' as const },
+    book: { title: 'Harbor Lights', author: 'A. Reader', language: 'en', format: 'epub' },
+    reading: { chapter: { title: 'Chapter 3' }, context: {
+      strategy: 'sentence' as const,
+      immediateText: { before: 'The wind had grown colder as', after: 'walked toward the lighthouse.' },
+      adjacentText: { before: 'The harbor was already dark.', after: 'Behind her, the last shop closed.' },
+    } }, preferences: { level: 'simple' as const },
   };
 }

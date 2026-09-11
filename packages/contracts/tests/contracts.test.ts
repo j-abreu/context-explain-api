@@ -4,9 +4,12 @@ import {
   EXPLANATION_CONTRACT_VERSION,
   BOOK_EXPLANATION_CONTRACT_VERSION,
   BOOK_EXPLANATION_V2_CONTRACT_VERSION,
+  BOOK_EXPLANATION_V3_CONTRACT_VERSION,
   WEB_EXPLANATION_CONTRACT_VERSION,
   isBookExplainV2Request,
   isBookExplainV2Response,
+  isBookExplainV3Request,
+  isBookExplainV3Response,
   isBookExplainRequest,
   isExplainRequest,
   isWebExplainRequest,
@@ -63,6 +66,7 @@ describe('explanation contracts', () => {
     expect(isBookExplainRequest(createBookRequest())).toBe(true);
     expect(isBookExplainRequest({ ...createBookRequest(), book: { title: 'A book', url: 'nope' } })).toBe(false);
     expect(isBookExplainV2Request(createBookV2Request())).toBe(true);
+    expect(isBookExplainV3Request(createBookV3Request())).toBe(true);
     expect(
       isBookExplainV2Request({
         ...createBookV2Request(),
@@ -111,6 +115,24 @@ describe('explanation contracts', () => {
     expect(isBookExplainV2Response(response)).toBe(true);
     expect(isBookExplainV2Response({ ...response, explanation: { ...response.explanation, relatedTerms: ['unsupported'] } })).toBe(false);
     expect(isBookExplainV2Response({ ...response, extra: true })).toBe(false);
+  });
+
+  it('enforces v3 combined context word and scalar limits', () => {
+    expect(isBookExplainV3Request({ ...createBookV3Request(), reading: {
+      ...createBookV3Request().reading,
+      context: { ...createBookV3Request().reading.context, strategy: 'unknown' },
+    } })).toBe(false);
+    expect(isBookExplainV3Request({ ...createBookV3Request(), reading: {
+      ...createBookV3Request().reading,
+      context: { ...createBookV3Request().reading.context, immediateText: { before: Array(101).fill('word').join(' '), after: '' } },
+    } })).toBe(false);
+    expect(isBookExplainV3Request({ ...createBookV3Request(), reading: {
+      ...createBookV3Request().reading,
+      context: { ...createBookV3Request().reading.context, adjacentText: { before: '😀'.repeat(1_201), after: '' } },
+    } })).toBe(false);
+    const response = { version: BOOK_EXPLANATION_V3_CONTRACT_VERSION, requestId: 'request-1', explanation: { explanation: 'Grounded.', relatedTerms: [] } };
+    expect(isBookExplainV3Response(response)).toBe(true);
+    expect(isBookExplainV3Response({ ...response, explanation: { ...response.explanation, relatedTerms: ['unsupported'] } })).toBe(false);
   });
 
 
@@ -179,6 +201,24 @@ function createBookV2Request() {
     reading: {
       chapter: { title: 'Chapter 3' },
       surroundingText: { before: 'Before', after: 'after.' },
+      priorMentions: [{ text: 'Mira kept the lighthouse key.' }],
+    },
+    preferences: { level: 'simple' as const },
+  };
+}
+
+function createBookV3Request() {
+  return {
+    version: BOOK_EXPLANATION_V3_CONTRACT_VERSION,
+    selection: { text: 'Mira', kind: 'word' as const },
+    book: { title: 'Harbor Lights', author: 'A. Reader', language: 'en', format: 'epub' },
+    reading: {
+      chapter: { title: 'Chapter 3' },
+      context: {
+        strategy: 'sentence' as const,
+        immediateText: { before: 'The wind had grown colder as', after: 'walked toward the lighthouse.' },
+        adjacentText: { before: 'The harbor was already dark.', after: 'Behind her, the last shop closed.' },
+      },
       priorMentions: [{ text: 'Mira kept the lighthouse key.' }],
     },
     preferences: { level: 'simple' as const },

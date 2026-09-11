@@ -2,11 +2,11 @@
 
 ## Status
 
-Implemented and evaluated on 2026-08-28. `POST /v1/explain/book` remains supported as the first KOReader integration while clients migrate.
+Version 3 is implemented as an additive sentence-aware contract. `POST /v1/explain/book` and `POST /v2/explain/book` remain supported unchanged for rollback and existing clients.
 
 ## Endpoint
 
-`POST /v2/explain/book`
+`POST /v3/explain/book`
 
 The route is book-domain specific, rather than KOReader specific, so another reader can adopt it. Versioning stays in the path because this payload deliberately replaces the generic web-shaped context fields in v1.
 
@@ -29,9 +29,16 @@ The route is book-domain specific, rather than KOReader specific, so another rea
     "chapter": {
       "title": "Chapter 3"
     },
-    "surroundingText": {
-      "before": "The wind had grown colder as",
-      "after": "walked toward the lighthouse."
+    "context": {
+      "strategy": "sentence",
+      "immediateText": {
+        "before": "The wind had grown colder as",
+        "after": "walked toward the lighthouse."
+      },
+      "adjacentText": {
+        "before": "The harbor was already dark.",
+        "after": "Behind her, the last shop closed for the night."
+      }
     },
     "priorMentions": [
       {
@@ -51,7 +58,9 @@ The route is book-domain specific, rather than KOReader specific, so another rea
 - `selection.text` — exact selected text.
 - `selection.kind` — `word`, `phrase`, or `passage`; this is computed locally from the selection and is only a presentation hint.
 - `book.title` — may be an empty string when metadata is unavailable.
-- `reading.surroundingText.before` and `.after` — bounded text immediately adjacent to the selection. The Worker reconstructs the immediate passage as `before + selection.text + after`.
+- `reading.context.immediateText.before` and `.after` — the containing sentence segment around the exact selection (or bounded word-window fallback). The Worker reconstructs the immediate passage as `before + selection.text + after`.
+- `reading.context.adjacentText.before` and `.after` — prose immediately outside the sentence segment; it is omitted from the immediate passage.
+- `reading.context.strategy` — `sentence`, `sentence_clipped`, or `word_window`; it describes capture mechanics, not confidence.
 - `preferences.level` — `simple`, `beginner`, or `detailed`.
 
 ### Optional book and reading fields
@@ -116,7 +125,8 @@ Text limits use Unicode scalar values (code points), not UTF-8 bytes, UTF-16 cod
 | Selection text | 5,000 |
 | Book title / author / chapter title | 500 |
 | Book language / format | 100 |
-| Surrounding text per side | 450 |
+| Immediate + adjacent text per side | 100 whitespace tokens and 1,200 Unicode scalar values |
+| Each immediate or adjacent text field | 1,200 |
 | Prior mentions | 5 |
 | Prior mention text | 300 |
 | Request ID | 200 |

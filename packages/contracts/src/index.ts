@@ -2,6 +2,7 @@ export const EXPLANATION_CONTRACT_VERSION = 6 as const;
 export const WEB_EXPLANATION_CONTRACT_VERSION = 1 as const;
 export const BOOK_EXPLANATION_CONTRACT_VERSION = 1 as const;
 export const BOOK_EXPLANATION_V2_CONTRACT_VERSION = 2 as const;
+export const BOOK_EXPLANATION_V3_CONTRACT_VERSION = 3 as const;
 
 export const EXPLANATION_LEVELS = ['simple', 'beginner', 'detailed'] as const;
 export type ExplanationLevel = (typeof EXPLANATION_LEVELS)[number];
@@ -68,6 +69,13 @@ export const BOOK_V2_LIMITS = {
   requestBodyBytes: 32 * 1024,
 } as const;
 
+export const BOOK_V3_LIMITS = {
+  ...BOOK_V2_LIMITS,
+  contextWordsPerSide: 100,
+  contextScalarsPerSide: 1_200,
+  contextFieldScalars: 1_200,
+} as const;
+
 export type BookExplainV2Request = {
   version: typeof BOOK_EXPLANATION_V2_CONTRACT_VERSION;
   selection: {
@@ -86,11 +94,28 @@ export type BookExplainV2Request = {
   preferences: ExplainRequest['preferences'];
 };
 
+export type BookExplainV3Request = {
+  version: typeof BOOK_EXPLANATION_V3_CONTRACT_VERSION;
+  selection: BookExplainV2Request['selection'];
+  book: BookExplainRequest['book'];
+  reading: {
+    chapter?: { title: string };
+    context: {
+      strategy: 'sentence' | 'sentence_clipped' | 'word_window';
+      immediateText: { before: string; after: string };
+      adjacentText: { before: string; after: string };
+    };
+    priorMentions?: Array<{ text: string }>;
+  };
+  preferences: ExplainRequest['preferences'];
+};
+
 export type ExplanationInput = {
   selection: {
     selectedText: string;
     context: ExplanationSelectionSnapshot['context'] & {
       priorMentions?: string[];
+      captureStrategy?: 'sentence' | 'sentence_clipped' | 'word_window';
     };
   };
   document: {
@@ -259,10 +284,45 @@ export function isBookExplainV2Request(value: unknown): value is BookExplainV2Re
   );
 }
 
+export function isBookExplainV3Request(value: unknown): value is BookExplainV3Request {
+  if (!isRecord(value) || value.version !== BOOK_EXPLANATION_V3_CONTRACT_VERSION
+    || !hasExactlyKeys(value, ['version', 'selection', 'book', 'reading', 'preferences'])) return false;
+  const { selection, book, reading, preferences } = value;
+  return isRecord(selection) && hasExactlyKeys(selection, ['text', 'kind'])
+    && isRecord(book) && hasOnlyKeys(book, ['title', 'author', 'language', 'format'])
+    && isRecord(reading) && hasOnlyKeys(reading, ['chapter', 'context', 'priorMentions'])
+    && isRecord(preferences) && hasOnlyKeys(preferences, ['level', 'responseLanguage'])
+    && isBoundedString(selection.text, 1, BOOK_V3_LIMITS.selectedText)
+    && ['word', 'phrase', 'passage'].includes(selection.kind as string)
+    && isBoundedString(book.title, 0, BOOK_V3_LIMITS.bookTitle)
+    && isOptionalBoundedString(book.author, BOOK_V3_LIMITS.bookAuthor)
+    && isOptionalBoundedString(book.language, BOOK_V3_LIMITS.bookLanguage)
+    && isOptionalBoundedString(book.format, BOOK_V3_LIMITS.bookFormat)
+    && isValidBookV3ReadingContext(reading) && isValidPreferences(preferences);
+}
+
 export function toExplanationInput(
-  request: ExplainRequest | WebExplainRequest | BookExplainRequest | BookExplainV2Request,
+  request: ExplainRequest | WebExplainRequest | BookExplainRequest | BookExplainV2Request | BookExplainV3Request,
 ): ExplanationInput {
-  if ('reading' in request) {
+  if ('reading' in request && 'context' in request.reading) {
+    const { immediateText, adjacentText, strategy } = request.reading.context;
+    const immediate = [immediateText.before, request.selection.text, immediateText.after].filter((value) => value.length > 0).join(' ');
+    return {
+      selection: { selectedText: request.selection.text, context: {
+        immediate, containingBlock: immediate, captureStrategy: strategy,
+        ...(adjacentText.before.length === 0 ? {} : { before: adjacentText.before }),
+        ...(adjacentText.after.length === 0 ? {} : { after: adjacentText.after }),
+        ...(request.reading.chapter === undefined ? {} : { heading: request.reading.chapter.title }),
+        ...(request.reading.priorMentions === undefined ? {} : { priorMentions: request.reading.priorMentions.map((mention) => mention.text) }),
+      } },
+      document: { kind: 'book', title: request.book.title, grounding: 'source-bound',
+        ...(request.book.author === undefined ? {} : { author: request.book.author }),
+        ...(request.book.language === undefined ? {} : { language: request.book.language }),
+        ...(request.book.format === undefined ? {} : { format: request.book.format }) },
+      preferences: request.preferences,
+    };
+  }
+  if ('reading' in request && 'surroundingText' in request.reading) {
     const before = request.reading.surroundingText.before;
     const after = request.reading.surroundingText.after;
     const immediate = [before, request.selection.text, after].filter((value) => value.length > 0).join(' ');
@@ -294,16 +354,17 @@ export function toExplanationInput(
   }
 
   if ('book' in request) {
+    const bookRequest = request as BookExplainRequest;
     return {
-      selection: request.selection,
+      selection: bookRequest.selection,
       document: {
         kind: 'book',
-        title: request.book.title,
-        ...(request.book.author === undefined ? {} : { author: request.book.author }),
-        ...(request.book.language === undefined ? {} : { language: request.book.language }),
-        ...(request.book.format === undefined ? {} : { format: request.book.format }),
+        title: bookRequest.book.title,
+        ...(bookRequest.book.author === undefined ? {} : { author: bookRequest.book.author }),
+        ...(bookRequest.book.language === undefined ? {} : { language: bookRequest.book.language }),
+        ...(bookRequest.book.format === undefined ? {} : { format: bookRequest.book.format }),
       },
-      preferences: request.preferences,
+      preferences: bookRequest.preferences,
     };
   }
 
@@ -363,7 +424,15 @@ export function isExplainSuccessResponse(value: unknown): value is ExplainSucces
 }
 
 export function isBookExplainV2Response(value: unknown): boolean {
-  if (!isRecord(value) || value.version !== BOOK_EXPLANATION_V2_CONTRACT_VERSION) return false;
+  return isBookResponse(value, BOOK_EXPLANATION_V2_CONTRACT_VERSION);
+}
+
+export function isBookExplainV3Response(value: unknown): boolean {
+  return isBookResponse(value, BOOK_EXPLANATION_V3_CONTRACT_VERSION);
+}
+
+function isBookResponse(value: unknown, version: number): boolean {
+  if (!isRecord(value) || value.version !== version) return false;
   if ('explanation' in value) {
     return hasExactlyKeys(value, ['version', 'requestId', 'explanation'])
       && isBoundedString(value.requestId, 1, BOOK_V2_LIMITS.requestId)
@@ -454,6 +523,26 @@ function isValidBookReadingContext(value: Record<string, unknown>): boolean {
             isBoundedString(mention.text, 1, LIMITS.priorMention),
         )))
   );
+}
+
+function isValidBookV3ReadingContext(value: Record<string, unknown>): boolean {
+  const { chapter, context, priorMentions } = value;
+  if (!isRecord(context) || !hasExactlyKeys(context, ['strategy', 'immediateText', 'adjacentText'])) return false;
+  const immediate = context.immediateText;
+  const adjacent = context.adjacentText;
+  if (!isRecord(immediate) || !hasExactlyKeys(immediate, ['before', 'after']) || !isRecord(adjacent) || !hasExactlyKeys(adjacent, ['before', 'after'])
+    || !['sentence', 'sentence_clipped', 'word_window'].includes(context.strategy as string)
+    || !isBoundedString(immediate.before, 0, BOOK_V3_LIMITS.contextFieldScalars) || !isBoundedString(immediate.after, 0, BOOK_V3_LIMITS.contextFieldScalars)
+    || !isBoundedString(adjacent.before, 0, BOOK_V3_LIMITS.contextFieldScalars) || !isBoundedString(adjacent.after, 0, BOOK_V3_LIMITS.contextFieldScalars)
+    || wordCount(`${immediate.before} ${adjacent.before}`) > BOOK_V3_LIMITS.contextWordsPerSide || wordCount(`${immediate.after} ${adjacent.after}`) > BOOK_V3_LIMITS.contextWordsPerSide
+    || unicodeScalarLength(immediate.before) + unicodeScalarLength(adjacent.before) > BOOK_V3_LIMITS.contextScalarsPerSide || unicodeScalarLength(immediate.after) + unicodeScalarLength(adjacent.after) > BOOK_V3_LIMITS.contextScalarsPerSide) return false;
+  return (chapter === undefined || (isRecord(chapter) && hasExactlyKeys(chapter, ['title']) && isBoundedString(chapter.title, 1, BOOK_V3_LIMITS.chapterTitle)))
+    && (priorMentions === undefined || (Array.isArray(priorMentions) && priorMentions.length <= BOOK_V3_LIMITS.priorMentions && priorMentions.every((mention) => isRecord(mention) && hasExactlyKeys(mention, ['text']) && isBoundedString(mention.text, 1, BOOK_V3_LIMITS.priorMention))));
+}
+
+export function wordCount(value: string): number {
+  const normalized = value.trim();
+  return normalized === '' ? 0 : normalized.split(/\s+/u).length;
 }
 
 function isValidPreferences(value: Record<string, unknown>): boolean {

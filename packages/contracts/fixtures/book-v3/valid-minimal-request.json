@@ -1,0 +1,13 @@
+{
+  "version": 3,
+  "selection": { "text": "Mira", "kind": "word" },
+  "book": { "title": "Harbor Lights", "format": "epub" },
+  "reading": {
+    "context": {
+      "strategy": "sentence",
+      "immediateText": { "before": "Mira", "after": "waited." },
+      "adjacentText": { "before": "", "after": "" }
+    }
+  },
+  "preferences": { "level": "simple" }
+}

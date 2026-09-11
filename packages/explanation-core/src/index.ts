@@ -1,6 +1,6 @@
 import type { ExplanationInput, ExplanationLevel } from '@context-explain/contracts';
 
-export const EXPLANATION_PROMPT_VERSION = '2026-08-28-v12' as const;
+export const EXPLANATION_PROMPT_VERSION = '2026-09-11-v13' as const;
 
 export type ExplanationPrompt = {
   instructions: string;
@@ -68,6 +68,7 @@ This is a source-bound book request. Every claim about a person, character, plac
 
 - Do not use general knowledge, remembered plot details, adaptations, criticism, the book title, or the author as evidence about book-specific entities.
 - The chapter title is orientation only, not evidence of its contents.
+- A sentence capture strategy means the immediate context follows sentence boundaries. A sentence-clipped or word-window strategy may be a fragment; do not assume omitted text or complete syntax.
 - If the excerpts do not establish an entity's identity or role, say that the supplied context does not establish it.
 - When the selected text appears to name a character and the excerpts establish it, briefly say who the character is. If the earlier excerpts establish the character's first appearance, you may describe how they are introduced; also include their role in the current moment or any directly evidenced relationship when relevant to the selection.
 - Do not force a character interpretation when the excerpts do not support one.
@@ -111,6 +112,7 @@ function buildPromptInput(request: ExplanationInput): string {
       ...(context.before === undefined ? {} : { before: context.before }),
       ...(context.after === undefined ? {} : { after: context.after }),
       ...(context.priorMentions === undefined ? {} : { priorMentions: context.priorMentions }),
+      ...(context.captureStrategy === undefined ? {} : { captureStrategy: context.captureStrategy }),
     },
     document: {
       kind: request.document.kind,
