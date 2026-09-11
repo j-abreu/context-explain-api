@@ -189,7 +189,6 @@ function describeInvalidV4Completion(value: unknown): Record<string, unknown> {
   const searches = typeof retrieval === 'object' && retrieval !== null && !Array.isArray(retrieval)
     ? (retrieval as Record<string, unknown>).searches : undefined;
   return {
-    topLevelKeys: Object.keys(body).sort(),
     version: body.version,
     originalIsValid: isBookExplainV4Request(body.original),
     retrievalIsObject: typeof retrieval === 'object' && retrieval !== null && !Array.isArray(retrieval),
@@ -198,9 +197,10 @@ function describeInvalidV4Completion(value: unknown): Record<string, unknown> {
       if (typeof search !== 'object' || search === null || Array.isArray(search)) return { valueType: typeof search };
       const entry = search as Record<string, unknown>;
       return {
-        keys: Object.keys(entry).sort(), status: entry.status, authorization: entry.authorization,
+        status: entry.status, authorization: entry.authorization,
         requestedScope: entry.requestedScope, policyScope: entry.policyScope, executedScope: entry.executedScope,
-        candidateCount: entry.candidateCount, matchCount: Array.isArray(entry.matches) ? entry.matches.length : undefined,
+        candidateCount: entry.candidateCount, candidateLimitReached: entry.candidateLimitReached,
+        matchCount: Array.isArray(entry.matches) ? entry.matches.length : undefined,
       };
     }) : undefined,
   };
