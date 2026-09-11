@@ -164,7 +164,10 @@ async function handleV4Request(request: Request, pathname: string, options: Hand
       if (plan === undefined) throw new ExplanationProviderError('internal_error', false);
       return json({ version: BOOK_EXPLANATION_V4_CONTRACT_VERSION, requestId, outcome: { type: 'search', plan } }, 200);
     }
-    if (!isBookExplainV4CompletionRequest(body) || options.provider.completeBookExplanation === undefined) return explainError(BOOK_EXPLANATION_V4_CONTRACT_VERSION, requestId, 'invalid_request', 'The explanation request is invalid.', false, 400);
+    if (!isBookExplainV4CompletionRequest(body) || options.provider.completeBookExplanation === undefined) {
+      console.warn('Rejected v4 completion request.', describeInvalidV4Completion(body));
+      return explainError(BOOK_EXPLANATION_V4_CONTRACT_VERSION, requestId, 'invalid_request', 'The explanation request is invalid.', false, 400);
+    }
     const explanation = await options.provider.completeBookExplanation(body);
     return json({ version: BOOK_EXPLANATION_V4_CONTRACT_VERSION, requestId, explanation: limitBookRelatedTerms(explanation, body.original) }, 200);
   } catch (error: unknown) {
@@ -175,6 +178,31 @@ async function handleV4Request(request: Request, pathname: string, options: Hand
 
 function limitBookRelatedTerms(explanation: { explanation: string; relatedTerms: string[] }, request: import('@context-explain/contracts').BookExplainV4Request) {
   return allowsBookRelatedTerms(request) ? explanation : { ...explanation, relatedTerms: [] };
+}
+
+/** Metadata-only logging for schema debugging; selected text and excerpts must never enter logs. */
+function describeInvalidV4Completion(value: unknown): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return { bodyType: typeof value };
+  const body = value as Record<string, unknown>;
+  const retrieval = body.retrieval;
+  const searches = typeof retrieval === 'object' && retrieval !== null && !Array.isArray(retrieval)
+    ? (retrieval as Record<string, unknown>).searches : undefined;
+  return {
+    topLevelKeys: Object.keys(body).sort(),
+    version: body.version,
+    originalIsValid: isBookExplainV4Request(body.original),
+    retrievalIsObject: typeof retrieval === 'object' && retrieval !== null && !Array.isArray(retrieval),
+    searchCount: Array.isArray(searches) ? searches.length : undefined,
+    searches: Array.isArray(searches) ? searches.map((search) => {
+      if (typeof search !== 'object' || search === null || Array.isArray(search)) return { valueType: typeof search };
+      const entry = search as Record<string, unknown>;
+      return {
+        keys: Object.keys(entry).sort(), status: entry.status, authorization: entry.authorization,
+        requestedScope: entry.requestedScope, policyScope: entry.policyScope, executedScope: entry.executedScope,
+        candidateCount: entry.candidateCount, matchCount: Array.isArray(entry.matches) ? entry.matches.length : undefined,
+      };
+    }) : undefined,
+  };
 }
 
 async function readJsonBody(request: Request): Promise<unknown> {
