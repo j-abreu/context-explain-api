@@ -165,8 +165,9 @@ async function handleV4Request(request: Request, pathname: string, options: Hand
       return json({ version: BOOK_EXPLANATION_V4_CONTRACT_VERSION, requestId, outcome: { type: 'search', plan } }, 200);
     }
     if (!isBookExplainV4CompletionRequest(body) || options.provider.completeBookExplanation === undefined) {
-      console.warn('Rejected v4 completion request.', describeInvalidV4Completion(body));
-      return explainError(BOOK_EXPLANATION_V4_CONTRACT_VERSION, requestId, 'invalid_request', 'The explanation request is invalid.', false, 400);
+      const diagnostic = describeInvalidV4Completion(body);
+      console.warn('Rejected v4 completion request.', diagnostic);
+      return explainError(BOOK_EXPLANATION_V4_CONTRACT_VERSION, requestId, 'invalid_request', `Invalid completion metadata: ${JSON.stringify(diagnostic).slice(0, 400)}`, false, 400);
     }
     const explanation = await options.provider.completeBookExplanation(body);
     return json({ version: BOOK_EXPLANATION_V4_CONTRACT_VERSION, requestId, explanation: limitBookRelatedTerms(explanation, body.original) }, 200);
