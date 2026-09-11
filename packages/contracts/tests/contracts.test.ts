@@ -5,11 +5,15 @@ import {
   BOOK_EXPLANATION_CONTRACT_VERSION,
   BOOK_EXPLANATION_V2_CONTRACT_VERSION,
   BOOK_EXPLANATION_V3_CONTRACT_VERSION,
+  BOOK_EXPLANATION_V4_CONTRACT_VERSION,
   WEB_EXPLANATION_CONTRACT_VERSION,
   isBookExplainV2Request,
   isBookExplainV2Response,
   isBookExplainV3Request,
   isBookExplainV3Response,
+  isBookExplainV4CompletionRequest,
+  isBookExplainV4Request,
+  normalizeSearchPlan,
   isBookExplainRequest,
   isExplainRequest,
   isWebExplainRequest,
@@ -133,6 +137,27 @@ describe('explanation contracts', () => {
     const response = { version: BOOK_EXPLANATION_V3_CONTRACT_VERSION, requestId: 'request-1', explanation: { explanation: 'Grounded.', relatedTerms: [] } };
     expect(isBookExplainV3Response(response)).toBe(true);
     expect(isBookExplainV3Response({ ...response, explanation: { ...response.explanation, relatedTerms: ['unsupported'] } })).toBe(false);
+  });
+
+  it('validates v4 context-only requests and clamps unsafe plans', () => {
+    const { priorMentions: _priorMentions, ...reading } = createBookV3Request().reading;
+    const request = { ...createBookV3Request(), version: BOOK_EXPLANATION_V4_CONTRACT_VERSION, reading };
+    expect(isBookExplainV4Request(request)).toBe(true);
+    expect(isBookExplainV4Request({ ...request, reading: { ...request.reading, priorMentions: [{ text: 'not allowed' }] } })).toBe(false);
+    expect(normalizeSearchPlan({ bookMode: 'narrative', classificationBasis: 'Sequential fiction.', queries: [{ text: ' Mira  key ', requestedScope: 'whole_book' }] })).toEqual({
+      bookMode: 'narrative', classificationBasis: 'Sequential fiction.', queries: [{ id: 'q1', text: 'Mira key', requestedScope: 'whole_book', policyScope: 'before_selection', policyReason: 'narrative_guard' }],
+    });
+    expect(normalizeSearchPlan({ bookMode: 'reference', classificationBasis: 'Reference work.', queries: [{ text: 'same', requestedScope: 'before_selection' }, { text: ' SAME ', requestedScope: 'before_selection' }] })).toBeUndefined();
+  });
+
+  it('rejects continuation evidence that broadens scope or includes later text', () => {
+    const { priorMentions: _priorMentions, ...reading } = createBookV3Request().reading;
+    const original = { ...createBookV3Request(), version: BOOK_EXPLANATION_V4_CONTRACT_VERSION, reading };
+    const continuation = { version: BOOK_EXPLANATION_V4_CONTRACT_VERSION, originalRequestId: 'request-1', original, retrieval: {
+      bookMode: 'narrative', classificationBasis: 'Sequential fiction.', searches: [{ id: 'q1', text: 'Mira', requestedScope: 'whole_book', policyScope: 'before_selection', policyReason: 'narrative_guard', executedScope: 'before_selection', authorization: 'not_required', status: 'ok', candidateCount: 1, candidateLimitReached: false, matches: [{ relation: 'before', text: 'Mira kept the key.' }] }],
+    } };
+    expect(isBookExplainV4CompletionRequest(continuation)).toBe(true);
+    expect(isBookExplainV4CompletionRequest({ ...continuation, retrieval: { ...continuation.retrieval, searches: [{ ...continuation.retrieval.searches[0], matches: [{ relation: 'after', text: 'Later text.' }] }] } })).toBe(false);
   });
 
 

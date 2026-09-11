@@ -3,6 +3,7 @@ import {
   BOOK_EXPLANATION_CONTRACT_VERSION,
   BOOK_EXPLANATION_V2_CONTRACT_VERSION,
   BOOK_EXPLANATION_V3_CONTRACT_VERSION,
+  BOOK_EXPLANATION_V4_CONTRACT_VERSION,
   WEB_EXPLANATION_CONTRACT_VERSION,
   toExplanationInput,
   type ExplainRequest,
@@ -116,6 +117,26 @@ describe('Cloudflare Worker API', () => {
     expect(provider.explain).toHaveBeenCalledWith(expect.objectContaining({ selection: expect.objectContaining({
       context: expect.objectContaining({ immediate: 'The wind had grown colder as Mira walked toward the lighthouse.', before: 'The harbor was already dark.', after: 'Behind her, the last shop closed.', captureStrategy: 'sentence' }),
     }) }));
+  });
+
+  it('returns either a v4 answer or a normalized, policy-clamped search plan', async () => {
+    const request = { ...createBookV3Request(), version: BOOK_EXPLANATION_V4_CONTRACT_VERSION };
+    const provider: ExplanationProvider = {
+      explain: vi.fn(),
+      decideBookExplanation: vi.fn().mockResolvedValue({ action: 'search', bookMode: 'narrative', classificationBasis: 'Sequential fiction.', queries: [{ text: 'Mira key', requestedScope: 'whole_book' }] }),
+    };
+    const response = await handleRequest(explainRequest(request, '/v4/explain/book'), { provider, rateLimiter: allowAll() });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ version: 4, outcome: { type: 'search', plan: { queries: [{ id: 'q1', policyScope: 'before_selection', policyReason: 'narrative_guard' }] } } });
+  });
+
+  it('accepts bounded v4 completion evidence and only returns a final explanation', async () => {
+    const original = { ...createBookV3Request(), version: BOOK_EXPLANATION_V4_CONTRACT_VERSION };
+    const request = { version: BOOK_EXPLANATION_V4_CONTRACT_VERSION, originalRequestId: 'request-1', original, retrieval: { bookMode: 'narrative', classificationBasis: 'Sequential fiction.', searches: [{ id: 'q1', text: 'Mira', requestedScope: 'before_selection', policyScope: 'before_selection', policyReason: 'model_requested', executedScope: 'before_selection', authorization: 'not_required', status: 'no_matches', candidateCount: 0, candidateLimitReached: false, matches: [] }] } };
+    const provider: ExplanationProvider = { explain: vi.fn(), completeBookExplanation: vi.fn().mockResolvedValue({ explanation: 'Only supplied context establishes this.', relatedTerms: ['removed'] }) };
+    const response = await handleRequest(explainRequest(request, '/v4/explain/book/complete'), { provider, rateLimiter: allowAll() });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ version: 4, explanation: { relatedTerms: [] } });
   });
 
   it('rejects malformed and oversized requests before inference', async () => {

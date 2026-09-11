@@ -3,6 +3,7 @@ export const WEB_EXPLANATION_CONTRACT_VERSION = 1 as const;
 export const BOOK_EXPLANATION_CONTRACT_VERSION = 1 as const;
 export const BOOK_EXPLANATION_V2_CONTRACT_VERSION = 2 as const;
 export const BOOK_EXPLANATION_V3_CONTRACT_VERSION = 3 as const;
+export const BOOK_EXPLANATION_V4_CONTRACT_VERSION = 4 as const;
 
 export const EXPLANATION_LEVELS = ['simple', 'beginner', 'detailed'] as const;
 export type ExplanationLevel = (typeof EXPLANATION_LEVELS)[number];
@@ -76,6 +77,21 @@ export const BOOK_V3_LIMITS = {
   contextFieldScalars: 1_200,
 } as const;
 
+export const BOOK_V4_LIMITS = {
+  ...BOOK_V3_LIMITS,
+  retrievalRounds: 1,
+  modelCalls: 2,
+  queries: 3,
+  queryScalars: 200,
+  queryWords: 24,
+  totalQueryScalars: 400,
+  candidateHits: 50,
+  excerptsPerQuery: 3,
+  excerptsTotal: 6,
+  excerptScalars: 300,
+  classificationBasis: 240,
+} as const;
+
 export type BookExplainV2Request = {
   version: typeof BOOK_EXPLANATION_V2_CONTRACT_VERSION;
   selection: {
@@ -108,6 +124,73 @@ export type BookExplainV3Request = {
     priorMentions?: Array<{ text: string }>;
   };
   preferences: ExplainRequest['preferences'];
+};
+
+/** V4 deliberately preserves V3's sentence-aware capture while removing eager retrieval. */
+export type BookExplainV4Request = Omit<BookExplainV3Request, 'version'> & {
+  version: typeof BOOK_EXPLANATION_V4_CONTRACT_VERSION;
+  reading: Omit<BookExplainV3Request['reading'], 'priorMentions'>;
+};
+
+export const BOOK_MODES = ['reference', 'narrative', 'uncertain'] as const;
+export type BookMode = (typeof BOOK_MODES)[number];
+export const SEARCH_SCOPES = ['before_selection', 'whole_book'] as const;
+export type SearchScope = (typeof SEARCH_SCOPES)[number];
+export const POLICY_REASONS = ['model_requested', 'narrative_guard', 'uncertain_guard'] as const;
+export type PolicyReason = (typeof POLICY_REASONS)[number];
+export const SEARCH_STATUSES = ['ok', 'no_matches', 'unsupported', 'timeout', 'failed'] as const;
+export type SearchStatus = (typeof SEARCH_STATUSES)[number];
+export const SEARCH_AUTHORIZATIONS = ['not_required', 'approved_whole_book', 'reader_downgrade'] as const;
+export type SearchAuthorization = (typeof SEARCH_AUTHORIZATIONS)[number];
+
+export type BookSearchQuery = {
+  id: string;
+  text: string;
+  requestedScope: SearchScope;
+  policyScope: SearchScope;
+  policyReason: PolicyReason;
+};
+
+export type BookSearchPlan = {
+  bookMode: BookMode;
+  classificationBasis: string;
+  queries: BookSearchQuery[];
+};
+
+export type BookExplainV4InitialResponse = {
+  version: typeof BOOK_EXPLANATION_V4_CONTRACT_VERSION;
+  requestId: string;
+  outcome: { type: 'answer'; explanation: StructuredExplanation } | { type: 'search'; plan: BookSearchPlan };
+};
+
+/** Provider output is deliberately smaller than the public response and never carries policy fields. */
+export type BookDecision =
+  | { action: 'answer'; explanation: StructuredExplanation }
+  | { action: 'search'; bookMode: BookMode; classificationBasis: string; queries: Array<{ text: string; requestedScope: SearchScope }> };
+
+export type BookSearchMatch = { relation: 'before' | 'after'; text: string };
+export type BookSearchExecution = BookSearchQuery & {
+  executedScope: SearchScope;
+  authorization: SearchAuthorization;
+  status: SearchStatus;
+  candidateCount: number;
+  candidateLimitReached: boolean;
+  matches: BookSearchMatch[];
+};
+export type BookExplainV4CompletionRequest = {
+  version: typeof BOOK_EXPLANATION_V4_CONTRACT_VERSION;
+  originalRequestId: string;
+  original: BookExplainV4Request;
+  retrieval: {
+    bookMode: BookMode;
+    classificationBasis: string;
+    searches: BookSearchExecution[];
+  };
+};
+export type BookExplainV4CompletionResponse = {
+  version: typeof BOOK_EXPLANATION_V4_CONTRACT_VERSION;
+  requestId: string;
+  explanation: StructuredExplanation;
 };
 
 export type ExplanationInput = {
@@ -301,8 +384,130 @@ export function isBookExplainV3Request(value: unknown): value is BookExplainV3Re
     && isValidBookV3ReadingContext(reading) && isValidPreferences(preferences);
 }
 
+export function isBookExplainV4Request(value: unknown): value is BookExplainV4Request {
+  if (!isRecord(value) || value.version !== BOOK_EXPLANATION_V4_CONTRACT_VERSION
+    || !hasExactlyKeys(value, ['version', 'selection', 'book', 'reading', 'preferences'])) return false;
+  const { selection, book, reading, preferences } = value;
+  return isRecord(selection) && hasExactlyKeys(selection, ['text', 'kind'])
+    && isRecord(book) && hasOnlyKeys(book, ['title', 'author', 'language', 'format'])
+    && isRecord(reading) && hasOnlyKeys(reading, ['chapter', 'context'])
+    && isRecord(preferences) && hasOnlyKeys(preferences, ['level', 'responseLanguage'])
+    && isBoundedString(selection.text, 1, BOOK_V4_LIMITS.selectedText)
+    && ['word', 'phrase', 'passage'].includes(selection.kind as string)
+    && isBoundedString(book.title, 0, BOOK_V4_LIMITS.bookTitle)
+    && isOptionalBoundedString(book.author, BOOK_V4_LIMITS.bookAuthor)
+    && isOptionalBoundedString(book.language, BOOK_V4_LIMITS.bookLanguage)
+    && isOptionalBoundedString(book.format, BOOK_V4_LIMITS.bookFormat)
+    && isValidBookV4ReadingContext(reading) && isValidPreferences(preferences);
+}
+
+export function normalizeBookSearchQuery(value: string): string | undefined {
+  const normalized = value.replace(/\s+/gu, ' ').trim();
+  if (normalized.length === 0 || /[\u0000-\u001f\u007f]/u.test(normalized)
+    || unicodeScalarLength(normalized) > BOOK_V4_LIMITS.queryScalars
+    || wordCount(normalized) > BOOK_V4_LIMITS.queryWords) return undefined;
+  return normalized;
+}
+
+export function normalizeSearchPlan(value: unknown): BookSearchPlan | undefined {
+  if (!isRecord(value) || !BOOK_MODES.includes(value.bookMode as BookMode)
+    || !isBoundedString(value.classificationBasis, 1, BOOK_V4_LIMITS.classificationBasis)
+    || !Array.isArray(value.queries) || value.queries.length === 0 || value.queries.length > BOOK_V4_LIMITS.queries) return undefined;
+  const seen = new Set<string>();
+  let totalScalars = 0;
+  const queries: BookSearchQuery[] = [];
+  for (let index = 0; index < value.queries.length; index += 1) {
+    const query = value.queries[index];
+    if (!isRecord(query) || !hasOnlyKeys(query, ['text', 'requestedScope', 'id', 'policyScope', 'policyReason'])
+      || !SEARCH_SCOPES.includes(query.requestedScope as SearchScope)) return undefined;
+    const text = typeof query.text === 'string' ? normalizeBookSearchQuery(query.text) : undefined;
+    if (text === undefined) return undefined;
+    const dedupeKey = text.toLocaleLowerCase();
+    if (seen.has(dedupeKey)) return undefined;
+    seen.add(dedupeKey);
+    totalScalars += unicodeScalarLength(text);
+    if (totalScalars > BOOK_V4_LIMITS.totalQueryScalars) return undefined;
+    const requestedScope = query.requestedScope as SearchScope;
+    const policy = clampSearchScope(value.bookMode as BookMode, requestedScope);
+    queries.push({ id: `q${index + 1}`, text, requestedScope, ...policy });
+  }
+  return { bookMode: value.bookMode as BookMode, classificationBasis: value.classificationBasis, queries };
+}
+
+export function normalizeBookDecision(value: unknown): BookDecision | undefined {
+  if (!isRecord(value) || (value.action !== 'answer' && value.action !== 'search')) return undefined;
+  if (value.action === 'answer') {
+    return hasExactlyKeys(value, ['action', 'explanation']) && isSourceBoundExplanation(value.explanation)
+      ? { action: 'answer', explanation: value.explanation }
+      : undefined;
+  }
+  if (!hasExactlyKeys(value, ['action', 'bookMode', 'classificationBasis', 'queries'])) return undefined;
+  const plan = normalizeSearchPlan({
+    bookMode: value.bookMode,
+    classificationBasis: value.classificationBasis,
+    queries: Array.isArray(value.queries)
+      ? value.queries.map((query) => isRecord(query) ? { text: query.text, requestedScope: query.requestedScope } : query)
+      : value.queries,
+  });
+  return plan === undefined ? undefined : {
+    action: 'search', bookMode: plan.bookMode, classificationBasis: plan.classificationBasis,
+    queries: plan.queries.map(({ text, requestedScope }) => ({ text, requestedScope })),
+  };
+}
+
+export function clampSearchScope(bookMode: BookMode, requestedScope: SearchScope): Pick<BookSearchQuery, 'policyScope' | 'policyReason'> {
+  if (bookMode === 'narrative' && requestedScope === 'whole_book') return { policyScope: 'before_selection', policyReason: 'narrative_guard' };
+  if (bookMode === 'uncertain' && requestedScope === 'whole_book') return { policyScope: 'before_selection', policyReason: 'uncertain_guard' };
+  return { policyScope: requestedScope, policyReason: 'model_requested' };
+}
+
+export function isBookExplainV4InitialResponse(value: unknown): value is BookExplainV4InitialResponse {
+  if (!isRecord(value) || value.version !== BOOK_EXPLANATION_V4_CONTRACT_VERSION
+    || !hasExactlyKeys(value, ['version', 'requestId', 'outcome']) || !isBoundedString(value.requestId, 1, BOOK_V4_LIMITS.requestId) || !isRecord(value.outcome)) return false;
+  if (value.outcome.type === 'answer') return hasExactlyKeys(value.outcome, ['type', 'explanation']) && isSourceBoundExplanation(value.outcome.explanation);
+  return value.outcome.type === 'search' && hasExactlyKeys(value.outcome, ['type', 'plan']) && isNormalizedSearchPlan(value.outcome.plan);
+}
+
+export function isBookExplainV4CompletionRequest(value: unknown): value is BookExplainV4CompletionRequest {
+  if (!isRecord(value) || value.version !== BOOK_EXPLANATION_V4_CONTRACT_VERSION
+    || !hasExactlyKeys(value, ['version', 'originalRequestId', 'original', 'retrieval'])
+    || !isBoundedString(value.originalRequestId, 1, BOOK_V4_LIMITS.requestId)
+    || !isBookExplainV4Request(value.original) || !isRecord(value.retrieval)) return false;
+  const retrieval = value.retrieval;
+  if (!hasExactlyKeys(retrieval, ['bookMode', 'classificationBasis', 'searches'])
+    || !BOOK_MODES.includes(retrieval.bookMode as BookMode)
+    || !isBoundedString(retrieval.classificationBasis, 1, BOOK_V4_LIMITS.classificationBasis)
+    || !Array.isArray(retrieval.searches) || retrieval.searches.length === 0 || retrieval.searches.length > BOOK_V4_LIMITS.queries) return false;
+  let totalMatches = 0;
+  return retrieval.searches.every((search) => {
+    if (!isSearchExecution(search)) return false;
+    const expectedPolicy = clampSearchScope(retrieval.bookMode as BookMode, search.requestedScope);
+    if (search.policyScope !== expectedPolicy.policyScope || search.policyReason !== expectedPolicy.policyReason) return false;
+    totalMatches += search.matches.length;
+    return totalMatches <= BOOK_V4_LIMITS.excerptsTotal;
+  });
+}
+
+export function matchesAcceptedSearchPlan(value: BookExplainV4CompletionRequest, plan: BookSearchPlan): boolean {
+  const { retrieval } = value;
+  if (retrieval.bookMode !== plan.bookMode || retrieval.classificationBasis !== plan.classificationBasis || retrieval.searches.length !== plan.queries.length) return false;
+  return retrieval.searches.every((search, index) => {
+    const query = plan.queries[index];
+    if (query === undefined) return false;
+    return search.id === query.id && search.text === query.text && search.requestedScope === query.requestedScope
+      && search.policyScope === query.policyScope && search.policyReason === query.policyReason
+      && (search.executedScope === search.policyScope || (search.policyScope === 'whole_book' && search.executedScope === 'before_selection'));
+  });
+}
+
+export function isBookExplainV4CompletionResponse(value: unknown): value is BookExplainV4CompletionResponse {
+  return isRecord(value) && value.version === BOOK_EXPLANATION_V4_CONTRACT_VERSION
+    && hasExactlyKeys(value, ['version', 'requestId', 'explanation'])
+    && isBoundedString(value.requestId, 1, BOOK_V4_LIMITS.requestId) && isSourceBoundExplanation(value.explanation);
+}
+
 export function toExplanationInput(
-  request: ExplainRequest | WebExplainRequest | BookExplainRequest | BookExplainV2Request | BookExplainV3Request,
+  request: ExplainRequest | WebExplainRequest | BookExplainRequest | BookExplainV2Request | BookExplainV3Request | BookExplainV4Request,
 ): ExplanationInput {
   if ('reading' in request && 'context' in request.reading) {
     const { immediateText, adjacentText, strategy } = request.reading.context;
@@ -538,6 +743,47 @@ function isValidBookV3ReadingContext(value: Record<string, unknown>): boolean {
     || unicodeScalarLength(immediate.before) + unicodeScalarLength(adjacent.before) > BOOK_V3_LIMITS.contextScalarsPerSide || unicodeScalarLength(immediate.after) + unicodeScalarLength(adjacent.after) > BOOK_V3_LIMITS.contextScalarsPerSide) return false;
   return (chapter === undefined || (isRecord(chapter) && hasExactlyKeys(chapter, ['title']) && isBoundedString(chapter.title, 1, BOOK_V3_LIMITS.chapterTitle)))
     && (priorMentions === undefined || (Array.isArray(priorMentions) && priorMentions.length <= BOOK_V3_LIMITS.priorMentions && priorMentions.every((mention) => isRecord(mention) && hasExactlyKeys(mention, ['text']) && isBoundedString(mention.text, 1, BOOK_V3_LIMITS.priorMention))));
+}
+
+function isValidBookV4ReadingContext(value: Record<string, unknown>): boolean {
+  return isValidBookV3ReadingContext({ ...value, priorMentions: undefined });
+}
+
+function isNormalizedSearchPlan(value: unknown): value is BookSearchPlan {
+  if (!isRecord(value) || !hasExactlyKeys(value, ['bookMode', 'classificationBasis', 'queries'])) return false;
+  const suppliedQueries = value.queries;
+  if (!Array.isArray(suppliedQueries)) return false;
+  const normalized = normalizeSearchPlan(value);
+  if (normalized === undefined || normalized.queries.length !== suppliedQueries.length) return false;
+  return normalized.queries.every((query, index) => {
+    const supplied = suppliedQueries[index];
+    return isRecord(supplied) && hasExactlyKeys(supplied, ['id', 'text', 'requestedScope', 'policyScope', 'policyReason'])
+      && query.id === supplied.id && query.text === supplied.text && query.requestedScope === supplied.requestedScope
+      && query.policyScope === supplied.policyScope && query.policyReason === supplied.policyReason;
+  });
+}
+
+function isSearchExecution(value: unknown): value is BookSearchExecution {
+  if (!isRecord(value) || !hasExactlyKeys(value, ['id', 'text', 'requestedScope', 'policyScope', 'policyReason', 'executedScope', 'authorization', 'status', 'candidateCount', 'candidateLimitReached', 'matches'])) return false;
+  const candidateCount = value.candidateCount;
+  if (!isBoundedString(value.id, 1, BOOK_V4_LIMITS.requestId) || typeof value.text !== 'string' || normalizeBookSearchQuery(value.text) !== value.text
+    || !SEARCH_SCOPES.includes(value.requestedScope as SearchScope) || !SEARCH_SCOPES.includes(value.policyScope as SearchScope)
+    || !POLICY_REASONS.includes(value.policyReason as PolicyReason) || !SEARCH_SCOPES.includes(value.executedScope as SearchScope)
+    || !SEARCH_AUTHORIZATIONS.includes(value.authorization as SearchAuthorization) || !SEARCH_STATUSES.includes(value.status as SearchStatus)
+    || !Number.isInteger(candidateCount) || typeof candidateCount !== 'number' || candidateCount < 0 || candidateCount > BOOK_V4_LIMITS.candidateHits
+    || typeof value.candidateLimitReached !== 'boolean' || !Array.isArray(value.matches) || value.matches.length > BOOK_V4_LIMITS.excerptsPerQuery) return false;
+  if (value.status !== 'ok' && (value.matches.length !== 0 || (value.status === 'no_matches' && value.candidateCount !== 0))) return false;
+  if (value.authorization === 'approved_whole_book' && !(value.policyScope === 'whole_book' && value.executedScope === 'whole_book')) return false;
+  if (value.authorization === 'reader_downgrade' && !(value.policyScope === 'whole_book' && value.executedScope === 'before_selection')) return false;
+  if (value.authorization === 'not_required' && value.policyScope === 'whole_book' && value.executedScope === 'whole_book') return false;
+  return value.matches.every((match) => isRecord(match) && hasExactlyKeys(match, ['relation', 'text'])
+    && (match.relation === 'before' || match.relation === 'after')
+    && isBoundedString(match.text, 1, BOOK_V4_LIMITS.excerptScalars)
+    && !(value.executedScope === 'before_selection' && match.relation !== 'before'));
+}
+
+function isSourceBoundExplanation(value: unknown): value is StructuredExplanation {
+  return isStructuredExplanation(value) && value.relatedTerms.length === 0;
 }
 
 export function wordCount(value: string): number {

@@ -1,10 +1,14 @@
 import {
+  normalizeBookDecision,
   isStructuredExplanation,
   STRUCTURED_EXPLANATION_JSON_SCHEMA,
+  type BookDecision,
+  type BookExplainV4CompletionRequest,
+  type BookExplainV4Request,
   type ExplanationInput,
   type StructuredExplanation,
 } from '@context-explain/contracts';
-import { buildExplanationPrompt } from '@context-explain/explanation-core';
+import { buildBookCompletionPrompt, buildBookDecisionPrompt, buildExplanationPrompt } from '@context-explain/explanation-core';
 
 export const WORKERS_AI_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast' as const;
 
@@ -12,7 +16,20 @@ export type ExplanationProviderResult = StructuredExplanation;
 
 export type ExplanationProvider = {
   explain: (request: ExplanationInput) => Promise<ExplanationProviderResult>;
+  decideBookExplanation?: (request: BookExplainV4Request) => Promise<BookDecision>;
+  completeBookExplanation?: (request: BookExplainV4CompletionRequest) => Promise<StructuredExplanation>;
 };
+
+const BOOK_DECISION_JSON_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  properties: {
+    action: { type: 'string', enum: ['answer', 'search'] },
+    explanation: STRUCTURED_EXPLANATION_JSON_SCHEMA,
+    bookMode: { type: 'string', enum: ['reference', 'narrative', 'uncertain'] },
+    classificationBasis: { type: 'string', maxLength: 240 },
+    queries: { type: 'array', maxItems: 3, items: { type: 'object', additionalProperties: false, properties: { text: { type: 'string', maxLength: 200 }, requestedScope: { type: 'string', enum: ['before_selection', 'whole_book'] } }, required: ['text', 'requestedScope'] } },
+  }, required: ['action'],
+} as const;
 
 export type WorkersAiBinding = {
   run(
@@ -24,7 +41,7 @@ export type WorkersAiBinding = {
       stream: false;
       response_format: {
         type: 'json_schema';
-        json_schema: typeof STRUCTURED_EXPLANATION_JSON_SCHEMA;
+        json_schema: object;
       };
     },
   ): Promise<unknown>;
@@ -83,15 +100,49 @@ export function createWorkersAiExplanationProvider(ai: WorkersAiBinding): Explan
         throw classifyWorkersAiError(error);
       }
     },
+    async decideBookExplanation(request) {
+      const prompt = buildBookDecisionPrompt(request);
+      const result = await runPrompt(ai, prompt, BOOK_DECISION_JSON_SCHEMA);
+      const decision = normalizeBookDecision(extractJson(result));
+      if (decision === undefined) {
+        console.error('Workers AI returned no usable book decision.', { promptVersion: prompt.version, ...describeResultShape(result) });
+        throw new ExplanationProviderError('internal_error', false);
+      }
+      return decision;
+    },
+    async completeBookExplanation(request) {
+      const prompt = buildBookCompletionPrompt(request);
+      const result = await runPrompt(ai, prompt, STRUCTURED_EXPLANATION_JSON_SCHEMA);
+      const explanation = extractStructuredExplanation(result);
+      if (explanation === undefined) {
+        console.error('Workers AI returned no usable book completion.', { promptVersion: prompt.version, ...describeResultShape(result) });
+        throw new ExplanationProviderError('internal_error', false);
+      }
+      return { ...explanation, relatedTerms: [] };
+    },
   };
 }
 
+async function runPrompt(ai: WorkersAiBinding, prompt: { instructions: string; input: string; maxOutputTokens: number }, schema: object): Promise<unknown> {
+  try {
+    return await ai.run(WORKERS_AI_MODEL, { messages: [{ role: 'system', content: prompt.instructions }, { role: 'user', content: prompt.input }], max_tokens: prompt.maxOutputTokens, temperature: 0.2, stream: false, response_format: { type: 'json_schema', json_schema: schema } });
+  } catch (error: unknown) {
+    console.error('Workers AI request failed.', describeError(error));
+    throw classifyWorkersAiError(error);
+  }
+}
+
 function extractStructuredExplanation(result: unknown): StructuredExplanation | undefined {
+  const value = extractJson(result);
+  return isStructuredExplanation(value) ? value : undefined;
+}
+
+function extractJson(result: unknown): unknown {
   if (!isRecord(result)) {
     return undefined;
   }
 
-  if (isStructuredExplanation(result.response)) {
+  if (result.response !== undefined) {
     return result.response;
   }
 
@@ -101,7 +152,7 @@ function extractStructuredExplanation(result: unknown): StructuredExplanation | 
   }
 
   const content = firstChoice.message.content;
-  if (isStructuredExplanation(content)) {
+  if (isRecord(content)) {
     return content;
   }
 
@@ -111,7 +162,7 @@ function extractStructuredExplanation(result: unknown): StructuredExplanation | 
 
   try {
     const parsed: unknown = JSON.parse(content);
-    return isStructuredExplanation(parsed) ? parsed : undefined;
+    return parsed;
   } catch {
     return undefined;
   }

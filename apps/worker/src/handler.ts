@@ -3,6 +3,10 @@ import {
   BOOK_EXPLANATION_CONTRACT_VERSION,
   BOOK_EXPLANATION_V2_CONTRACT_VERSION,
   BOOK_EXPLANATION_V3_CONTRACT_VERSION,
+  BOOK_EXPLANATION_V4_CONTRACT_VERSION,
+  isBookExplainV4CompletionRequest,
+  isBookExplainV4Request,
+  normalizeSearchPlan,
   isBookExplainV2Request,
   isBookExplainV3Request,
   WEB_EXPLANATION_CONTRACT_VERSION,
@@ -83,6 +87,10 @@ export async function handleRequest(
     return json({ status: 'ok' }, 200);
   }
 
+  if (url.pathname === '/v4/explain/book' || url.pathname === '/v4/explain/book/complete') {
+    return handleV4Request(request, url.pathname, options);
+  }
+
   const route = EXPLAIN_ROUTES[url.pathname];
   if (route === undefined) {
     return json({ error: 'not_found' }, 404);
@@ -137,6 +145,30 @@ export async function handleRequest(
       providerError.retryable,
       status,
     );
+  }
+}
+
+async function handleV4Request(request: Request, pathname: string, options: HandleRequestOptions): Promise<Response> {
+  if (request.method !== 'POST') return methodNotAllowed('POST');
+  const requestId = crypto.randomUUID();
+  const { success } = await options.rateLimiter.limit({ key: getRateLimitKey(request) });
+  if (!success) return explainError(BOOK_EXPLANATION_V4_CONTRACT_VERSION, requestId, 'service_unavailable', 'Too many explanation requests.', true, 429, { 'retry-after': '60' });
+  const body = await readJsonBody(request);
+  try {
+    if (pathname === '/v4/explain/book') {
+      if (!isBookExplainV4Request(body) || options.provider.decideBookExplanation === undefined) return explainError(BOOK_EXPLANATION_V4_CONTRACT_VERSION, requestId, 'invalid_request', 'The explanation request is invalid.', false, 400);
+      const decision = await options.provider.decideBookExplanation(body);
+      if (decision.action === 'answer') return json({ version: BOOK_EXPLANATION_V4_CONTRACT_VERSION, requestId, outcome: { type: 'answer', explanation: decision.explanation } }, 200);
+      const plan = normalizeSearchPlan(decision);
+      if (plan === undefined) throw new ExplanationProviderError('internal_error', false);
+      return json({ version: BOOK_EXPLANATION_V4_CONTRACT_VERSION, requestId, outcome: { type: 'search', plan } }, 200);
+    }
+    if (!isBookExplainV4CompletionRequest(body) || options.provider.completeBookExplanation === undefined) return explainError(BOOK_EXPLANATION_V4_CONTRACT_VERSION, requestId, 'invalid_request', 'The explanation request is invalid.', false, 400);
+    const explanation = await options.provider.completeBookExplanation(body);
+    return json({ version: BOOK_EXPLANATION_V4_CONTRACT_VERSION, requestId, explanation: { ...explanation, relatedTerms: [] } }, 200);
+  } catch (error: unknown) {
+    const providerError = error instanceof ExplanationProviderError ? error : new ExplanationProviderError('internal_error', false);
+    return explainError(BOOK_EXPLANATION_V4_CONTRACT_VERSION, requestId, providerError.code, getPublicErrorMessage(providerError.code), providerError.retryable, providerError.code === 'internal_error' ? 500 : 503);
   }
 }
 
