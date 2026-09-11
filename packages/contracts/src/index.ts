@@ -132,6 +132,13 @@ export type BookExplainV4Request = Omit<BookExplainV3Request, 'version'> & {
   reading: Omit<BookExplainV3Request['reading'], 'priorMentions'>;
 };
 
+/** Related terms are only useful for ordinary one-word concepts, never passages or named-entity phrases. */
+export function allowsBookRelatedTerms(request: BookExplainV4Request): boolean {
+  return request.selection.kind === 'word'
+    && /^\p{Ll}/u.test(request.selection.text)
+    && wordCount(request.selection.text) === 1;
+}
+
 export const BOOK_MODES = ['reference', 'narrative', 'uncertain'] as const;
 export type BookMode = (typeof BOOK_MODES)[number];
 export const SEARCH_SCOPES = ['before_selection', 'whole_book'] as const;
@@ -437,7 +444,7 @@ export function normalizeSearchPlan(value: unknown): BookSearchPlan | undefined 
 export function normalizeBookDecision(value: unknown): BookDecision | undefined {
   if (!isRecord(value) || (value.action !== 'answer' && value.action !== 'search')) return undefined;
   if (value.action === 'answer') {
-    return hasExactlyKeys(value, ['action', 'explanation']) && isSourceBoundExplanation(value.explanation)
+    return hasExactlyKeys(value, ['action', 'explanation']) && isStructuredExplanation(value.explanation)
       ? { action: 'answer', explanation: value.explanation }
       : undefined;
   }
@@ -464,7 +471,7 @@ export function clampSearchScope(bookMode: BookMode, requestedScope: SearchScope
 export function isBookExplainV4InitialResponse(value: unknown): value is BookExplainV4InitialResponse {
   if (!isRecord(value) || value.version !== BOOK_EXPLANATION_V4_CONTRACT_VERSION
     || !hasExactlyKeys(value, ['version', 'requestId', 'outcome']) || !isBoundedString(value.requestId, 1, BOOK_V4_LIMITS.requestId) || !isRecord(value.outcome)) return false;
-  if (value.outcome.type === 'answer') return hasExactlyKeys(value.outcome, ['type', 'explanation']) && isSourceBoundExplanation(value.outcome.explanation);
+  if (value.outcome.type === 'answer') return hasExactlyKeys(value.outcome, ['type', 'explanation']) && isStructuredExplanation(value.outcome.explanation);
   return value.outcome.type === 'search' && hasExactlyKeys(value.outcome, ['type', 'plan']) && isNormalizedSearchPlan(value.outcome.plan);
 }
 
@@ -503,7 +510,7 @@ export function matchesAcceptedSearchPlan(value: BookExplainV4CompletionRequest,
 export function isBookExplainV4CompletionResponse(value: unknown): value is BookExplainV4CompletionResponse {
   return isRecord(value) && value.version === BOOK_EXPLANATION_V4_CONTRACT_VERSION
     && hasExactlyKeys(value, ['version', 'requestId', 'explanation'])
-    && isBoundedString(value.requestId, 1, BOOK_V4_LIMITS.requestId) && isSourceBoundExplanation(value.explanation);
+    && isBoundedString(value.requestId, 1, BOOK_V4_LIMITS.requestId) && isStructuredExplanation(value.explanation);
 }
 
 export function toExplanationInput(

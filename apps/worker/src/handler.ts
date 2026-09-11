@@ -7,6 +7,7 @@ import {
   isBookExplainV4CompletionRequest,
   isBookExplainV4Request,
   normalizeSearchPlan,
+  allowsBookRelatedTerms,
   isBookExplainV2Request,
   isBookExplainV3Request,
   WEB_EXPLANATION_CONTRACT_VERSION,
@@ -158,18 +159,22 @@ async function handleV4Request(request: Request, pathname: string, options: Hand
     if (pathname === '/v4/explain/book') {
       if (!isBookExplainV4Request(body) || options.provider.decideBookExplanation === undefined) return explainError(BOOK_EXPLANATION_V4_CONTRACT_VERSION, requestId, 'invalid_request', 'The explanation request is invalid.', false, 400);
       const decision = await options.provider.decideBookExplanation(body);
-      if (decision.action === 'answer') return json({ version: BOOK_EXPLANATION_V4_CONTRACT_VERSION, requestId, outcome: { type: 'answer', explanation: decision.explanation } }, 200);
+      if (decision.action === 'answer') return json({ version: BOOK_EXPLANATION_V4_CONTRACT_VERSION, requestId, outcome: { type: 'answer', explanation: limitBookRelatedTerms(decision.explanation, body) } }, 200);
       const plan = normalizeSearchPlan(decision);
       if (plan === undefined) throw new ExplanationProviderError('internal_error', false);
       return json({ version: BOOK_EXPLANATION_V4_CONTRACT_VERSION, requestId, outcome: { type: 'search', plan } }, 200);
     }
     if (!isBookExplainV4CompletionRequest(body) || options.provider.completeBookExplanation === undefined) return explainError(BOOK_EXPLANATION_V4_CONTRACT_VERSION, requestId, 'invalid_request', 'The explanation request is invalid.', false, 400);
     const explanation = await options.provider.completeBookExplanation(body);
-    return json({ version: BOOK_EXPLANATION_V4_CONTRACT_VERSION, requestId, explanation: { ...explanation, relatedTerms: [] } }, 200);
+    return json({ version: BOOK_EXPLANATION_V4_CONTRACT_VERSION, requestId, explanation: limitBookRelatedTerms(explanation, body.original) }, 200);
   } catch (error: unknown) {
     const providerError = error instanceof ExplanationProviderError ? error : new ExplanationProviderError('internal_error', false);
     return explainError(BOOK_EXPLANATION_V4_CONTRACT_VERSION, requestId, providerError.code, getPublicErrorMessage(providerError.code), providerError.retryable, providerError.code === 'internal_error' ? 500 : 503);
   }
+}
+
+function limitBookRelatedTerms(explanation: { explanation: string; relatedTerms: string[] }, request: import('@context-explain/contracts').BookExplainV4Request) {
+  return allowsBookRelatedTerms(request) ? explanation : { ...explanation, relatedTerms: [] };
 }
 
 async function readJsonBody(request: Request): Promise<unknown> {

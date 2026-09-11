@@ -139,6 +139,20 @@ describe('Cloudflare Worker API', () => {
     expect(await response.json()).toMatchObject({ version: 4, explanation: { relatedTerms: [] } });
   });
 
+  it('preserves related terms only for a lowercase one-word concept', async () => {
+    const original = { ...createBookV3Request(), version: BOOK_EXPLANATION_V4_CONTRACT_VERSION, selection: { text: 'melancholy', kind: 'word' } };
+    const provider: ExplanationProvider = {
+      explain: vi.fn(),
+      decideBookExplanation: vi.fn().mockResolvedValue({ action: 'answer', explanation: { explanation: 'A feeling of thoughtful sadness.', relatedTerms: ['sadness', 'sorrow'] } }),
+    };
+    const response = await handleRequest(explainRequest(original, '/v4/explain/book'), { provider, rateLimiter: allowAll() });
+    expect(await response.json()).toMatchObject({ outcome: { explanation: { relatedTerms: ['sadness', 'sorrow'] } } });
+
+    const passage = { ...original, selection: { text: 'Mira lowered her eyes.', kind: 'phrase' } };
+    const suppressed = await handleRequest(explainRequest(passage, '/v4/explain/book'), { provider, rateLimiter: allowAll() });
+    expect(await suppressed.json()).toMatchObject({ outcome: { explanation: { relatedTerms: [] } } });
+  });
+
   it('rejects malformed and oversized requests before inference', async () => {
     const provider: ExplanationProvider = { explain: vi.fn() };
 

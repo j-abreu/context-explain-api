@@ -13,6 +13,7 @@ import {
   isBookExplainV3Response,
   isBookExplainV4CompletionRequest,
   isBookExplainV4Request,
+  allowsBookRelatedTerms,
   normalizeSearchPlan,
   isBookExplainRequest,
   isExplainRequest,
@@ -143,6 +144,9 @@ describe('explanation contracts', () => {
     const { priorMentions: _priorMentions, ...reading } = createBookV3Request().reading;
     const request = { ...createBookV3Request(), version: BOOK_EXPLANATION_V4_CONTRACT_VERSION, reading };
     expect(isBookExplainV4Request(request)).toBe(true);
+    expect(allowsBookRelatedTerms({ ...request, selection: { text: 'melancholy', kind: 'word' } })).toBe(true);
+    expect(allowsBookRelatedTerms({ ...request, selection: { text: 'Mira', kind: 'word' } })).toBe(false);
+    expect(allowsBookRelatedTerms({ ...request, selection: { text: 'a melancholy mood', kind: 'phrase' } })).toBe(false);
     expect(isBookExplainV4Request({ ...request, reading: { ...request.reading, priorMentions: [{ text: 'not allowed' }] } })).toBe(false);
     expect(normalizeSearchPlan({ bookMode: 'narrative', classificationBasis: 'Sequential fiction.', queries: [{ text: ' Mira  key ', requestedScope: 'whole_book' }] })).toEqual({
       bookMode: 'narrative', classificationBasis: 'Sequential fiction.', queries: [{ id: 'q1', text: 'Mira key', requestedScope: 'whole_book', policyScope: 'before_selection', policyReason: 'narrative_guard' }],

@@ -118,7 +118,7 @@ export function createWorkersAiExplanationProvider(ai: WorkersAiBinding): Explan
         console.error('Workers AI returned no usable book completion.', { promptVersion: prompt.version, ...describeResultShape(result) });
         throw new ExplanationProviderError('internal_error', false);
       }
-      return { ...explanation, relatedTerms: [] };
+      return explanation;
     },
   };
 }
