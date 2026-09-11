@@ -1,7 +1,7 @@
 import type { BookExplainV4CompletionRequest, BookExplainV4Request, ExplanationInput, ExplanationLevel } from '@context-explain/contracts';
 
 export const EXPLANATION_PROMPT_VERSION = '2026-09-11-v13' as const;
-export const BOOK_DECISION_PROMPT_VERSION = '2026-09-11-v4-decision-2' as const;
+export const BOOK_DECISION_PROMPT_VERSION = '2026-09-11-v4-decision-3' as const;
 export const BOOK_COMPLETION_PROMPT_VERSION = '2026-09-11-v4-completion-1' as const;
 
 export type ExplanationPrompt = {
@@ -107,7 +107,7 @@ export function buildBookDecisionPrompt(request: BookExplainV4Request): Explanat
   return {
     ...base,
     version: BOOK_DECISION_PROMPT_VERSION,
-    instructions: `${base.instructions}\n\n# One bounded local-search decision\nAnswer immediately only when the supplied evidence establishes the selected passage's meaning or role without material uncertainty. Request search_book when literal earlier book evidence could materially identify or disambiguate a book-specific name, person, place, organization, relationship, event, fictional term, concept, or cross-reference. A proper name or term mentioned only in the immediate passage is not by itself enough evidence of its role; prefer search when earlier occurrences could establish that role. Do not request search for ordinary vocabulary, clear phrasing, or when it would only repeat context already supplied. Return one to three short literal book-search queries derived only from the supplied input. Classify only a search request as reference, narrative, or uncertain. Narrative and uncertain books must request before_selection; reference books may request whole_book only when later sections are genuinely useful. Do not answer and request search together.`,
+    instructions: `${base.instructions}\n\n# One bounded local-search decision\nAnswer immediately only when the supplied evidence establishes the selected passage's meaning or role without material uncertainty. You MUST request search_book for a selected proper name, title, named character, named place, organization, relationship, event, fictional term, or cross-reference when the supplied excerpts do not explicitly establish its role or identity. Do not infer that a named entity is a character, its role, or its relationship from the title, metadata, or general knowledge. A name mentioned only in the immediate passage is insufficient: request a literal search for that name or phrase. Do not request search for ordinary vocabulary, clear phrasing, or when it would only repeat evidence already supplied. Return one to three short literal book-search queries derived only from the supplied input. Classify only a search request as reference, narrative, or uncertain. Narrative and uncertain books must request before_selection; reference books may request whole_book only when later sections are genuinely useful. Do not answer and request search together.`,
   };
 }
 
