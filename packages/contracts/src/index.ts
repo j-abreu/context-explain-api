@@ -50,6 +50,24 @@ export type BookExplainRequest = {
   preferences: ExplainRequest['preferences'];
 };
 
+export const BOOK_V2_LIMITS = {
+  selectedText: 5_000,
+  bookTitle: 500,
+  bookAuthor: 500,
+  bookLanguage: 100,
+  bookFormat: 100,
+  chapterTitle: 500,
+  surroundingText: 450,
+  priorMention: 300,
+  priorMentions: 5,
+  requestId: 200,
+  explanation: 4_000,
+  relatedTerm: 200,
+  relatedTerms: 5,
+  errorMessage: 500,
+  requestBodyBytes: 32 * 1024,
+} as const;
+
 export type BookExplainV2Request = {
   version: typeof BOOK_EXPLANATION_V2_CONTRACT_VERSION;
   selection: {
@@ -142,7 +160,7 @@ export type ExplainErrorResponse = {
 export type ExplainResponse = ExplainSuccessResponse | ExplainErrorResponse;
 
 const LIMITS = {
-  selectedText: 5_000,
+  selectedText: BOOK_V2_LIMITS.selectedText,
   contextBlock: 2_000,
   pageTitle: 500,
   language: 100,
@@ -150,10 +168,10 @@ const LIMITS = {
   explanation: 4_000,
   relatedTerm: 200,
   relatedTerms: 5,
-  requestId: 200,
-  bookContextSide: 450,
-  priorMention: 300,
-  priorMentions: 5,
+  requestId: BOOK_V2_LIMITS.requestId,
+  bookContextSide: BOOK_V2_LIMITS.surroundingText,
+  priorMention: BOOK_V2_LIMITS.priorMention,
+  priorMentions: BOOK_V2_LIMITS.priorMentions,
 } as const;
 
 export function isExplainRequest(value: unknown): value is ExplainRequest {
@@ -232,10 +250,10 @@ export function isBookExplainV2Request(value: unknown): value is BookExplainV2Re
   return (
     isBoundedString(selection.text, 1, LIMITS.selectedText) &&
     ['word', 'phrase', 'passage'].includes(selection.kind as string) &&
-    isBoundedString(book.title, 0, LIMITS.pageTitle) &&
-    isOptionalBoundedString(book.author, LIMITS.pageTitle) &&
-    isOptionalBoundedString(book.language, LIMITS.language) &&
-    isOptionalBoundedString(book.format, LIMITS.language) &&
+    isBoundedString(book.title, 0, BOOK_V2_LIMITS.bookTitle) &&
+    isOptionalBoundedString(book.author, BOOK_V2_LIMITS.bookAuthor) &&
+    isOptionalBoundedString(book.language, BOOK_V2_LIMITS.bookLanguage) &&
+    isOptionalBoundedString(book.format, BOOK_V2_LIMITS.bookFormat) &&
     isValidBookReadingContext(reading) &&
     isValidPreferences(preferences)
   );
@@ -344,6 +362,26 @@ export function isExplainSuccessResponse(value: unknown): value is ExplainSucces
   return isExplainResponse(value) && 'explanation' in value;
 }
 
+export function isBookExplainV2Response(value: unknown): boolean {
+  if (!isRecord(value) || value.version !== BOOK_EXPLANATION_V2_CONTRACT_VERSION) return false;
+  if ('explanation' in value) {
+    return hasExactlyKeys(value, ['version', 'requestId', 'explanation'])
+      && isBoundedString(value.requestId, 1, BOOK_V2_LIMITS.requestId)
+      && isRecord(value.explanation)
+      && hasExactlyKeys(value.explanation, ['explanation', 'relatedTerms'])
+      && isBoundedString(value.explanation.explanation, 1, BOOK_V2_LIMITS.explanation)
+      && Array.isArray(value.explanation.relatedTerms)
+      && value.explanation.relatedTerms.length === 0;
+  }
+  return hasOnlyKeys(value, ['version', 'requestId', 'error'])
+    && isOptionalBoundedString(value.requestId, BOOK_V2_LIMITS.requestId)
+    && isRecord(value.error)
+    && hasExactlyKeys(value.error, ['code', 'message', 'retryable'])
+    && EXPLAIN_ERROR_CODES.includes(value.error.code as ExplainErrorCode)
+    && isBoundedString(value.error.message, 1, BOOK_V2_LIMITS.errorMessage)
+    && typeof value.error.retryable === 'boolean';
+}
+
 function isWebRequest(value: unknown, version: number): boolean {
   if (
     !isRecord(value) ||
@@ -405,7 +443,7 @@ function isValidBookReadingContext(value: Record<string, unknown>): boolean {
     (chapter === undefined ||
       (isRecord(chapter) &&
         hasExactlyKeys(chapter, ['title']) &&
-        isBoundedString(chapter.title, 1, LIMITS.pageTitle))) &&
+        isBoundedString(chapter.title, 1, BOOK_V2_LIMITS.chapterTitle))) &&
     (priorMentions === undefined ||
       (Array.isArray(priorMentions) &&
         priorMentions.length <= LIMITS.priorMentions &&
@@ -439,7 +477,11 @@ function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]): b
 }
 
 function isBoundedString(value: unknown, minimum: number, maximum: number): value is string {
-  return typeof value === 'string' && value.length >= minimum && value.length <= maximum;
+  return typeof value === 'string' && unicodeScalarLength(value) >= minimum && unicodeScalarLength(value) <= maximum;
+}
+
+export function unicodeScalarLength(value: string): number {
+  return Array.from(value).length;
 }
 
 function isOptionalBoundedString(value: unknown, maximum: number): value is string | undefined {

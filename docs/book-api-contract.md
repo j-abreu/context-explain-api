@@ -59,7 +59,7 @@ The route is book-domain specific, rather than KOReader specific, so another rea
 - `book.author`, `book.language`, and `book.format` come from KOReader document properties or the local file type.
 - `reading.chapter.title` comes from KOReader's current TOC entry.
 - `preferences.responseLanguage` overrides the language inferred from the passage.
-- `reading.priorMentions` contains zero to three short, locally found excerpts. Their order is chronological.
+- `reading.priorMentions` contains zero to five short, locally found excerpts. Their order is chronological.
 
 The client must omit unavailable fields rather than inventing placeholders. It must not send the book file, a full chapter, publisher description, raw local path, raw XPointer, or a reading-progress value.
 
@@ -100,18 +100,29 @@ For a selection of one or two words, KOReader may search the current book locall
 
 1. Search the exact selection with case-insensitive matching and a small context window.
 2. Consider only hits whose end position is strictly before the selection start position.
-3. Keep at most the first three qualifying hits in book order, deduplicate equal excerpts, then send bounded snippets as `reading.priorMentions`.
+3. Keep at most the first five qualifying hits in book order, deduplicate equal excerpts, then send bounded snippets as `reading.priorMentions`.
 4. Run the search outside the UI thread, allow cancellation, and omit `priorMentions` if the document backend cannot produce orderable positions or the search fails.
 
 For reflowable KOReader documents, use search results' `start`/`end` XPointers and `compareXPointers` to enforce the boundary locally. PDF and OCR backends need a separate capability check; they must never fall back to searching later pages.
 
 This deliberately leaves local position values on the device. The API receives only the spoiler-safe excerpts selected by the client.
 
-## Limits to validate before implementation
+## Limits
 
-- selected text: 5,000 Unicode characters maximum
-- adjacent context: 450 Unicode characters per side initially
-- prior mentions: at most 3 excerpts, initially 300 Unicode characters each
-- request: retain the Worker's 32 KiB maximum body size
+Text limits use Unicode scalar values (code points), not UTF-8 bytes, UTF-16 code units, or grapheme clusters. The request-body limit remains bytes.
 
-The exact snippet size and the choice between the first three versus more recent prior mentions are evaluation questions. The initial product decision is first three, as they are most likely to introduce a character without relying on later developments.
+| Field | Maximum |
+|---|---:|
+| Selection text | 5,000 |
+| Book title / author / chapter title | 500 |
+| Book language / format | 100 |
+| Surrounding text per side | 450 |
+| Prior mentions | 5 |
+| Prior mention text | 300 |
+| Request ID | 200 |
+| Explanation | 4,000 |
+| Related terms / each term | 5 / 200 |
+| Error message | 500 |
+| Encoded request body | 32 KiB |
+
+KOReader intentionally captures prior-mention excerpts at 280 scalar values, below the public 300-value maximum.

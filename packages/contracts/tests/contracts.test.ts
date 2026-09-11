@@ -6,12 +6,14 @@ import {
   BOOK_EXPLANATION_V2_CONTRACT_VERSION,
   WEB_EXPLANATION_CONTRACT_VERSION,
   isBookExplainV2Request,
+  isBookExplainV2Response,
   isBookExplainRequest,
   isExplainRequest,
   isWebExplainRequest,
   isExplainResponse,
   isStructuredExplanation,
   STRUCTURED_EXPLANATION_JSON_SCHEMA,
+  unicodeScalarLength,
 } from '../src/index.js';
 
 describe('explanation contracts', () => {
@@ -93,6 +95,24 @@ describe('explanation contracts', () => {
       }),
     ).toBe(true);
   });
+
+  it('uses Unicode scalar values and enforces the source-bound v2 response shape', () => {
+    expect(unicodeScalarLength('é')).toBe(1);
+    expect(unicodeScalarLength('😀')).toBe(1);
+    expect(isBookExplainV2Request({
+      ...createBookV2Request(),
+      selection: { text: '😀'.repeat(5_000), kind: 'passage' },
+    })).toBe(true);
+    expect(isBookExplainV2Request({
+      ...createBookV2Request(),
+      selection: { text: '😀'.repeat(5_001), kind: 'passage' },
+    })).toBe(false);
+    const response = { version: BOOK_EXPLANATION_V2_CONTRACT_VERSION, requestId: 'request-1', explanation: { explanation: 'Grounded.', relatedTerms: [] } };
+    expect(isBookExplainV2Response(response)).toBe(true);
+    expect(isBookExplainV2Response({ ...response, explanation: { ...response.explanation, relatedTerms: ['unsupported'] } })).toBe(false);
+    expect(isBookExplainV2Response({ ...response, extra: true })).toBe(false);
+  });
+
 
   it('requires the exact structured explanation shape', () => {
     const valid = {
