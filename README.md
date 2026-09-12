@@ -1,20 +1,41 @@
 # Context Explain API
 
-Cloudflare Worker API for contextual explanations, shared by reader-facing clients including KOReader Explain.
+Context Explain API is a Cloudflare Worker for generating structured, context-aware explanations. It is shared infrastructure for independent clients, currently including browser and KOReader readers.
 
-## Current state
+The production Worker is available at `https://context-explain-api.jere-lab.workers.dev`.
 
-The Worker is deployed at `https://context-explain-api.jere-lab.workers.dev` and owns versioned contracts, prompt behavior, Workers AI integration, rate limiting, and observability.
+## What it does
 
-- Compatibility routes remain available at `POST /explain`, `POST /v1/explain/web`, and `POST /v1/explain/book`.
-- `POST /v2/explain/book` and `POST /v3/explain/book` provide source-bound book explanations with bounded reading context.
-- Feature 04 uses `POST /v4/explain/book` for an initial answer-or-search decision and `POST /v4/explain/book/complete` for a final explanation after client-side retrieval.
-- v4 permits one to three bounded client-side search queries; it never performs book retrieval in the Worker.
-- v4 returns related terms only for a lowercase one-word ordinary concept. Phrases, passages, situations, proper names, and book-specific terms return an empty list.
+- Accepts versioned explanation requests for web pages and books.
+- Normalizes client input into a provider-neutral explanation model.
+- Uses Workers AI to return a structured explanation and optional related terms.
+- Applies source-bound rules to book requests so claims about book-specific people, places, events, and relationships rely only on the supplied context and retrieved excerpts.
+- Supports a bounded two-step book flow: the Worker can request one to three local searches, and the client submits a small set of retrieved excerpts for the final explanation.
+- Enforces request limits, strict schemas, rate limits, and metadata-only operational logging.
 
-`apps/worker` is the production Worker, `packages/contracts` owns HTTP validation, and `packages/explanation-core` owns provider-neutral prompts and evaluations.
+The Worker never searches or stores a reader's book. Book retrieval happens locally in the client, and only bounded excerpts needed to complete an explanation are submitted.
 
-## Build, test, and deploy
+## API surface
+
+| Route | Purpose |
+| --- | --- |
+| `POST /explain` | Legacy compatibility route. |
+| `POST /v1/explain/web` | Versioned web-page explanation. |
+| `POST /v1/explain/book` | Initial book explanation contract. |
+| `POST /v2/explain/book` | Source-bound book explanation. |
+| `POST /v3/explain/book` | Source-bound book explanation with sentence-aware context. |
+| `POST /v4/explain/book` | Initial book answer or local-search decision. |
+| `POST /v4/explain/book/complete` | Final explanation using client-supplied local excerpts. |
+
+Contract types and validators live in `packages/contracts`. Prompts and evaluation cases live in `packages/explanation-core`. The production Worker is in `apps/worker`.
+
+## Privacy and safety
+
+All submitted content is treated as untrusted data, never as instructions. Client code must not contain model-provider credentials. Requests and responses are length-bounded and validated at the API boundary. Worker logs include only operational metadata; they must not include selected text, book metadata, prompts, excerpts, or generated explanations.
+
+Related terms are returned only when they are useful general vocabulary help for an ordinary one-word concept. The API suppresses them for passages, situations, names, and book-specific terms.
+
+## Development
 
 Requires Node.js 22+ and pnpm 11.
 
@@ -25,14 +46,18 @@ pnpm typecheck
 pnpm --filter @context-explain/worker run build
 ```
 
-Deploy after the checks pass:
+Run the Worker locally with the configured development bindings:
+
+```sh
+pnpm dev:worker
+```
+
+Deploy after tests, type checks, and the Worker build pass:
 
 ```sh
 pnpm --filter @context-explain/worker run deploy
 ```
 
-The deployment uses configured Cloudflare bindings for Workers AI and rate limiting. Do not place provider credentials in a client repository.
-
 ## Ownership
 
-Client repositories own their UI, local context/retrieval behavior, and release process. This repository owns API contracts, model/provider behavior, deployment, and service observability.
+This repository owns API contracts, prompt and provider behavior, deployment, rate limits, and service observability. Client repositories own their user interfaces, local context capture, local retrieval, and release process.
