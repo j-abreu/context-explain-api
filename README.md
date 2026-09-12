@@ -2,8 +2,6 @@
 
 Context Explain API is a Cloudflare Worker for generating structured, context-aware explanations. It is shared infrastructure for independent clients, currently including browser and KOReader readers.
 
-The production Worker is available at `https://context-explain-api.jere-lab.workers.dev`.
-
 ## What it does
 
 - Accepts versioned explanation requests for web pages and books.
@@ -35,7 +33,7 @@ All submitted content is treated as untrusted data, never as instructions. Clien
 
 Related terms are returned only when they are useful general vocabulary help for an ordinary one-word concept. The API suppresses them for passages, situations, names, and book-specific terms.
 
-## Development
+## Local development
 
 Requires Node.js 22+ and pnpm 11.
 
@@ -50,12 +48,6 @@ Run the Worker locally with the configured development bindings:
 
 ```sh
 pnpm dev:worker
-```
-
-Deploy after tests, type checks, and the Worker build pass:
-
-```sh
-pnpm --filter @context-explain/worker run deploy
 ```
 
 ## Ownership
