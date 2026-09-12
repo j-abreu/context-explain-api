@@ -50,6 +50,12 @@ Run the Worker locally with the configured development bindings:
 pnpm dev:worker
 ```
 
+Deploy after tests, type checks, and the Worker build pass:
+
+```sh
+pnpm --filter @context-explain/worker run deploy
+```
+
 ## Ownership
 
 This repository owns API contracts, prompt and provider behavior, deployment, rate limits, and service observability. Client repositories own their user interfaces, local context capture, local retrieval, and release process.
