@@ -130,6 +130,8 @@ describe('Workers AI provider', () => {
     });
     expect(normalizationInput.messages[0]?.content).toContain('only what the focal excerpt makes depictable');
     expect(normalizationInput.messages[0]?.content).toContain('never add visual details that appear only in context');
+    expect(normalizationInput.messages[0]?.content).toContain('Interpret metaphors, idioms, hyperbole, and comparisons');
+    expect(normalizationInput.messages[0]?.content).toContain('describe the implied visible human trait');
     const imageRequest = fetcher.mock.calls[0]?.[1] as RequestInit;
     expect(fetcher).toHaveBeenCalledWith('https://api.openai.com/v1/images/generations', expect.objectContaining({ method: 'POST' }));
     expect(imageRequest.headers).toMatchObject({ authorization: 'Bearer test-key', 'content-type': 'application/json' });
@@ -140,6 +142,8 @@ describe('Workers AI provider', () => {
     const prompt = imagePayload.prompt;
     expect(prompt).toContain('Generate a photorealistic cinematic photograph, not manga or animation of this source-grounded scene:');
     expect(prompt).toContain('A human woman walks from a dark harbor toward a lighthouse.');
+    expect(prompt).toContain('Depict this visual brief faithfully.');
+    expect(prompt).not.toContain('Keep it literal');
     expect(prompt).not.toContain('SUBJECT:');
     expect(prompt).not.toContain('black-and-white');
     expect(prompt).not.toContain('manga scene');
