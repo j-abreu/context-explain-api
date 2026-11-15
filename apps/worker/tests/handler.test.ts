@@ -126,6 +126,7 @@ describe('Cloudflare Worker API', () => {
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toBe('image/jpeg');
     expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(response.headers.get('x-illustration-model')).toBe('gpt-image-2.5-flare');
     expect(await response.arrayBuffer()).toEqual(new Uint8Array([0xff, 0xd8, 0xff, 0x00]).buffer);
     expect(provider.generateIllustration).toHaveBeenCalledWith(createIllustrationRequest());
   });

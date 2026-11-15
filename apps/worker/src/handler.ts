@@ -165,7 +165,7 @@ async function handleIllustrationRequest(request: Request, options: HandleReques
   try {
     const image = await options.provider.generateIllustration(body);
     return new Response(image, { status: 200, headers: {
-      'cache-control': 'no-store', 'content-type': 'image/jpeg', 'x-illustration-model': 'flux-1-schnell', 'x-request-id': requestId,
+      'cache-control': 'no-store', 'content-type': 'image/jpeg', 'x-illustration-model': 'gpt-image-2.5-flare', 'x-request-id': requestId,
     } });
   } catch (error: unknown) {
     const providerError = error instanceof ExplanationProviderError ? error : new ExplanationProviderError('internal_error', false);

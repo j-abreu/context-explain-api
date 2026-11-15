@@ -226,7 +226,6 @@ async function generateOpenAiIllustration(apiKey: string, prompt: string, fetche
       n: 1,
       size: '1024x1024',
       quality: 'medium',
-      complexity: 'medium',
       background: 'opaque',
       output_format: 'jpeg',
       output_compression: 70,
