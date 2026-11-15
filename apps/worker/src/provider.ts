@@ -306,7 +306,11 @@ function classifyWorkersAiError(error: unknown): ExplanationProviderError {
     return new ExplanationProviderError('timeout', true);
   }
 
-  if (status === 429 || (status !== undefined && status >= 500)) {
+  if (status === 429
+    || (status !== undefined && status >= 500)
+    || message.includes('daily free allocation')
+    || message.includes('neurons')
+    || message.includes('quota')) {
     return new ExplanationProviderError('service_unavailable', true);
   }
 

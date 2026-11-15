@@ -62,12 +62,23 @@ describe('Workers AI provider', () => {
     const limitedProvider = createWorkersAiExplanationProvider({
       run: vi.fn().mockRejectedValue({ status: 429 }),
     } as WorkersAiBinding);
+    const neuronLimitedProvider = createWorkersAiExplanationProvider({
+      run: vi.fn().mockRejectedValue({ name: 'AiError', message: '4006: you have used up your daily free allocation of 10,000 neurons.' }),
+    } as WorkersAiBinding);
 
     await expect(emptyProvider.explain(createRequest())).rejects.toMatchObject({
       code: 'internal_error',
       retryable: false,
     } satisfies Partial<ExplanationProviderError>);
     await expect(limitedProvider.explain(createRequest())).rejects.toMatchObject({
+      code: 'service_unavailable',
+      retryable: true,
+    } satisfies Partial<ExplanationProviderError>);
+    await expect(neuronLimitedProvider.generateIllustration?.({
+      version: 1,
+      selection: { text: 'A boy waits by the harbor.' },
+      reading: { context: { before: '', after: '' } },
+    })).rejects.toMatchObject({
       code: 'service_unavailable',
       retryable: true,
     } satisfies Partial<ExplanationProviderError>);
