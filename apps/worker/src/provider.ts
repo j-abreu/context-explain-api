@@ -271,7 +271,7 @@ function extractJson(result: unknown): unknown {
   }
 
   if (result.response !== undefined) {
-    return result.response;
+    return parseJsonValue(result.response);
   }
 
   const firstChoice = Array.isArray(result.choices) ? result.choices[0] : undefined;
@@ -280,16 +280,13 @@ function extractJson(result: unknown): unknown {
   }
 
   const content = firstChoice.message.content;
-  if (isRecord(content)) {
-    return content;
-  }
+  return parseJsonValue(content);
+}
 
-  if (typeof content !== 'string') {
-    return undefined;
-  }
-
+function parseJsonValue(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
   try {
-    const parsed: unknown = JSON.parse(content);
+    const parsed: unknown = JSON.parse(value);
     return parsed;
   } catch {
     return undefined;

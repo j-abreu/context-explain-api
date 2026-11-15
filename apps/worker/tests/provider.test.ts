@@ -181,6 +181,20 @@ describe('Workers AI provider', () => {
     })).rejects.toMatchObject({ code: 'internal_error', retryable: false } satisfies Partial<ExplanationProviderError>);
     expect(run).toHaveBeenCalledTimes(1);
   });
+
+  it('accepts a JSON-encoded illustration brief from Workers AI', async () => {
+    const run = vi.fn()
+      .mockResolvedValueOnce({ response: JSON.stringify({ scene: 'A boy waits by the harbor.', renderingHint: 'realistic' }) })
+      .mockResolvedValueOnce(jpegResult());
+    const provider = createWorkersAiExplanationProvider({ run });
+
+    await expect(provider.generateIllustration?.({
+      version: 1,
+      selection: { text: 'A boy waits by the harbor.' },
+      reading: { context: { before: '', after: '' } },
+    })).resolves.toBeInstanceOf(ArrayBuffer);
+    expect(run).toHaveBeenCalledTimes(2);
+  });
 });
 
 type IllustrationBrief = { scene: string; renderingHint: 'realistic' | 'fantasy' | 'manga' | 'neutral' };
