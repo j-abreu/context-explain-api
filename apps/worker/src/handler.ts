@@ -4,8 +4,10 @@ import {
   BOOK_EXPLANATION_V2_CONTRACT_VERSION,
   BOOK_EXPLANATION_V3_CONTRACT_VERSION,
   BOOK_EXPLANATION_V4_CONTRACT_VERSION,
+  BOOK_ILLUSTRATION_CONTRACT_VERSION,
   isBookExplainV4CompletionRequest,
   isBookExplainV4Request,
+  isBookIllustrationRequest,
   normalizeSearchPlan,
   allowsBookRelatedTerms,
   isBookExplainV2Request,
@@ -92,6 +94,8 @@ export async function handleRequest(
     return handleV4Request(request, url.pathname, options);
   }
 
+  if (url.pathname === '/v1/illustrate/book') return handleIllustrationRequest(request, options);
+
   const route = EXPLAIN_ROUTES[url.pathname];
   if (route === undefined) {
     return json({ error: 'not_found' }, 404);
@@ -146,6 +150,26 @@ export async function handleRequest(
       providerError.retryable,
       status,
     );
+  }
+}
+
+async function handleIllustrationRequest(request: Request, options: HandleRequestOptions): Promise<Response> {
+  if (request.method !== 'POST') return methodNotAllowed('POST');
+  const requestId = crypto.randomUUID();
+  const { success } = await options.rateLimiter.limit({ key: `illustration:${getRateLimitKey(request)}` });
+  if (!success) return explainError(BOOK_ILLUSTRATION_CONTRACT_VERSION, requestId, 'service_unavailable', 'Too many illustration requests.', true, 429, { 'retry-after': '60' });
+  const body = await readJsonBody(request);
+  if (!isBookIllustrationRequest(body) || options.provider.generateIllustration === undefined) {
+    return explainError(BOOK_ILLUSTRATION_CONTRACT_VERSION, requestId, 'invalid_request', 'The illustration request is invalid.', false, 400);
+  }
+  try {
+    const image = await options.provider.generateIllustration(body);
+    return new Response(image, { status: 200, headers: {
+      'cache-control': 'no-store', 'content-type': 'image/jpeg', 'x-illustration-model': 'flux-1-schnell', 'x-request-id': requestId,
+    } });
+  } catch (error: unknown) {
+    const providerError = error instanceof ExplanationProviderError ? error : new ExplanationProviderError('internal_error', false);
+    return explainError(BOOK_ILLUSTRATION_CONTRACT_VERSION, requestId, providerError.code, getPublicErrorMessage(providerError.code), providerError.retryable, providerError.code === 'internal_error' ? 500 : 503);
   }
 }
 

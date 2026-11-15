@@ -6,6 +6,7 @@ import {
   BOOK_EXPLANATION_V2_CONTRACT_VERSION,
   BOOK_EXPLANATION_V3_CONTRACT_VERSION,
   BOOK_EXPLANATION_V4_CONTRACT_VERSION,
+  BOOK_ILLUSTRATION_CONTRACT_VERSION,
   WEB_EXPLANATION_CONTRACT_VERSION,
   isBookExplainV2Request,
   isBookExplainV2Response,
@@ -22,6 +23,7 @@ import {
   isStructuredExplanation,
   STRUCTURED_EXPLANATION_JSON_SCHEMA,
   unicodeScalarLength,
+  isBookIllustrationRequest,
 } from '../src/index.js';
 
 describe('explanation contracts', () => {
@@ -84,6 +86,14 @@ describe('explanation contracts', () => {
         reading: { ...createBookV2Request().reading, priorMentions: Array(5).fill({ text: 'Earlier context.' }) },
       }),
     ).toBe(true);
+  });
+
+  it('validates a bounded, source-only illustration request', () => {
+    const request = { version: BOOK_ILLUSTRATION_CONTRACT_VERSION, selection: { text: 'Mira stood before the lighthouse.' }, reading: { context: { before: 'The harbor was dark.', after: 'Rain began to fall.' } } };
+    expect(isBookIllustrationRequest(request)).toBe(true);
+    expect(isBookIllustrationRequest({ ...request, book: { title: 'must not be sent' } })).toBe(false);
+    expect(isBookIllustrationRequest({ ...request, selection: { text: '😀'.repeat(701) } })).toBe(false);
+    expect(isBookIllustrationRequest({ ...request, reading: { context: { before: 'x'.repeat(601), after: '' } } })).toBe(false);
   });
 
   it('distinguishes valid success and error responses', () => {

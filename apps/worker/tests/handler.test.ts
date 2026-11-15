@@ -4,6 +4,7 @@ import {
   BOOK_EXPLANATION_V2_CONTRACT_VERSION,
   BOOK_EXPLANATION_V3_CONTRACT_VERSION,
   BOOK_EXPLANATION_V4_CONTRACT_VERSION,
+  BOOK_ILLUSTRATION_CONTRACT_VERSION,
   WEB_EXPLANATION_CONTRACT_VERSION,
   toExplanationInput,
   type ExplainRequest,
@@ -117,6 +118,23 @@ describe('Cloudflare Worker API', () => {
     expect(provider.explain).toHaveBeenCalledWith(expect.objectContaining({ selection: expect.objectContaining({
       context: expect.objectContaining({ immediate: 'The wind had grown colder as Mira walked toward the lighthouse.', before: 'The harbor was already dark.', after: 'Behind her, the last shop closed.', captureStrategy: 'sentence' }),
     }) }));
+  });
+
+  it('returns a bounded JPEG for a valid illustration request', async () => {
+    const provider: ExplanationProvider = { explain: vi.fn(), generateIllustration: vi.fn().mockResolvedValue(new Uint8Array([0xff, 0xd8, 0xff, 0x00]).buffer) };
+    const response = await handleRequest(explainRequest(createIllustrationRequest(), '/v1/illustrate/book'), { provider, rateLimiter: allowAll() });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('image/jpeg');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(await response.arrayBuffer()).toEqual(new Uint8Array([0xff, 0xd8, 0xff, 0x00]).buffer);
+    expect(provider.generateIllustration).toHaveBeenCalledWith(createIllustrationRequest());
+  });
+
+  it('rejects invalid illustration requests before inference', async () => {
+    const provider: ExplanationProvider = { explain: vi.fn(), generateIllustration: vi.fn() };
+    const response = await handleRequest(explainRequest({ version: BOOK_ILLUSTRATION_CONTRACT_VERSION }, '/v1/illustrate/book'), { provider, rateLimiter: allowAll() });
+    expect(response.status).toBe(400);
+    expect(provider.generateIllustration).not.toHaveBeenCalled();
   });
 
   it('returns either a v4 answer or a normalized, policy-clamped search plan', async () => {
@@ -281,5 +299,13 @@ function createBookV3Request() {
       immediateText: { before: 'The wind had grown colder as', after: 'walked toward the lighthouse.' },
       adjacentText: { before: 'The harbor was already dark.', after: 'Behind her, the last shop closed.' },
     } }, preferences: { level: 'simple' as const },
+  };
+}
+
+function createIllustrationRequest() {
+  return {
+    version: BOOK_ILLUSTRATION_CONTRACT_VERSION,
+    selection: { text: 'Mira' },
+    reading: { context: { before: 'The harbor was dark.', after: 'walked toward the lighthouse.' } },
   };
 }

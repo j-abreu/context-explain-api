@@ -5,6 +5,8 @@ export const BOOK_EXPLANATION_V2_CONTRACT_VERSION = 2 as const;
 export const BOOK_EXPLANATION_V3_CONTRACT_VERSION = 3 as const;
 export const BOOK_EXPLANATION_V4_CONTRACT_VERSION = 4 as const;
 
+export * from './illustration.js';
+
 export const EXPLANATION_LEVELS = ['simple', 'beginner', 'detailed'] as const;
 export type ExplanationLevel = (typeof EXPLANATION_LEVELS)[number];
 

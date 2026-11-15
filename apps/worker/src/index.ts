@@ -8,4 +8,4 @@ export default {
       rateLimiter: env.EXPLAIN_RATE_LIMITER,
     });
   },
-};
+} satisfies ExportedHandler<Env>;
