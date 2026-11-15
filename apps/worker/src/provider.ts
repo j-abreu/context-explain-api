@@ -12,8 +12,7 @@ import {
 import { buildBookCompletionPrompt, buildBookDecisionPrompt, buildExplanationPrompt } from '@context-explain/explanation-core';
 
 export const WORKERS_AI_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast' as const;
-export const ILLUSTRATION_MODEL = '@cf/black-forest-labs/flux-1-schnell' as const;
-const ILLUSTRATION_STEPS = 8;
+const OPENAI_IMAGE_MODEL = 'gpt-image-2.5-flare';
 const MAX_ILLUSTRATION_PROMPT_SCALARS = 2048;
 const MAX_CONTEXT_SIDE_SCALARS = 220;
 const MAX_NORMALIZED_SCENE_SCALARS = 600;
@@ -66,7 +65,13 @@ export type WorkersAiBinding = {
       };
     },
   ): Promise<unknown>;
-  run(model: typeof ILLUSTRATION_MODEL, input: { prompt: string; steps: number }): Promise<{ image: string }>;
+};
+
+type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+
+type OpenAiImageOptions = {
+  openAiApiKey: string;
+  fetcher?: Fetcher;
 };
 
 export type ExplanationProviderErrorCode = 'timeout' | 'service_unavailable' | 'usage_limit_reached' | 'internal_error';
@@ -81,7 +86,9 @@ export class ExplanationProviderError extends Error {
   }
 }
 
-export function createWorkersAiExplanationProvider(ai: WorkersAiBinding): ExplanationProvider {
+export function createWorkersAiExplanationProvider(ai: WorkersAiBinding, options?: OpenAiImageOptions): ExplanationProvider {
+  const openAiApiKey = options?.openAiApiKey ?? '';
+  const fetcher = options?.fetcher ?? fetch;
   return {
     async explain(request) {
       const prompt = buildExplanationPrompt(request);
@@ -145,7 +152,13 @@ export function createWorkersAiExplanationProvider(ai: WorkersAiBinding): Explan
     async generateIllustration(request) {
       try {
         const normalizationPrompt = buildIllustrationNormalizationPrompt(request);
-        const normalizationResult = await runPrompt(ai, normalizationPrompt, ILLUSTRATION_BRIEF_JSON_SCHEMA);
+        let normalizationResult: unknown;
+        try {
+          normalizationResult = await runPrompt(ai, normalizationPrompt, ILLUSTRATION_BRIEF_JSON_SCHEMA);
+        } catch (error: unknown) {
+          if (!(error instanceof ExplanationProviderError) || error.code !== 'usage_limit_reached') throw error;
+          normalizationResult = await generateOpenAiIllustrationBrief(openAiApiKey, normalizationPrompt, fetcher);
+        }
         const brief = extractIllustrationBrief(normalizationResult);
         if (brief === undefined) {
           console.error('Workers AI returned no usable illustration brief.', {
@@ -155,8 +168,7 @@ export function createWorkersAiExplanationProvider(ai: WorkersAiBinding): Explan
           throw new ExplanationProviderError('internal_error', false);
         }
 
-        const result = await ai.run(ILLUSTRATION_MODEL, { prompt: buildIllustrationPrompt(brief), steps: ILLUSTRATION_STEPS });
-        return decodeIllustration(result.image);
+        return await generateOpenAiIllustration(openAiApiKey, buildIllustrationPrompt(brief), fetcher);
       } catch (error: unknown) {
         if (error instanceof ExplanationProviderError) throw error;
         console.error('Workers AI illustration request failed.', describeError(error));
@@ -164,6 +176,73 @@ export function createWorkersAiExplanationProvider(ai: WorkersAiBinding): Explan
       }
     },
   };
+}
+
+async function generateOpenAiIllustrationBrief(
+  apiKey: string,
+  prompt: { instructions: string; input: string; maxOutputTokens: number },
+  fetcher: Fetcher,
+): Promise<unknown> {
+  if (apiKey.length === 0) throw new ExplanationProviderError('internal_error', false);
+  const response = await fetcher('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${apiKey}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: prompt.instructions },
+        { role: 'user', content: prompt.input },
+      ],
+      max_tokens: prompt.maxOutputTokens,
+      temperature: 0.2,
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'illustration_brief',
+          strict: true,
+          schema: ILLUSTRATION_BRIEF_JSON_SCHEMA,
+        },
+      },
+    }),
+  });
+  if (!response.ok) throw { status: response.status, name: 'OpenAiTextError' };
+  return await response.json();
+}
+
+async function generateOpenAiIllustration(apiKey: string, prompt: string, fetcher: Fetcher): Promise<ArrayBuffer> {
+  if (apiKey.length === 0) throw new ExplanationProviderError('internal_error', false);
+  const response = await fetcher('https://api.openai.com/v1/images/generations', {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${apiKey}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: OPENAI_IMAGE_MODEL,
+      prompt,
+      n: 1,
+      size: '1024x1024',
+      quality: 'medium',
+      complexity: 'medium',
+      background: 'opaque',
+      output_format: 'jpeg',
+      output_compression: 70,
+    }),
+  });
+  if (!response.ok) throw { status: response.status, name: 'OpenAiImageError' };
+  const result: unknown = await response.json();
+  const image = extractOpenAiImage(result);
+  if (image === undefined) throw new ExplanationProviderError('internal_error', false);
+  return decodeIllustration(image);
+}
+
+function extractOpenAiImage(result: unknown): string | undefined {
+  if (!isRecord(result) || !Array.isArray(result.data)) return undefined;
+  const first = result.data[0];
+  return isRecord(first) && typeof first.b64_json === 'string' ? first.b64_json : undefined;
 }
 
 function buildIllustrationNormalizationPrompt(request: BookIllustrationRequest): { version: string; instructions: string; input: string; maxOutputTokens: number } {
