@@ -107,14 +107,13 @@ describe('Workers AI provider', () => {
   it('generates a bounded JPEG using source text as a focused visual brief', async () => {
     const worker = illustrationWorker({
       scene: 'A human woman walks from a dark harbor toward a lighthouse.',
-      subjectKind: 'human',
       renderingHint: 'realistic',
     });
     const provider = createWorkersAiExplanationProvider(worker.ai);
     await expect(provider.generateIllustration?.({ version: 1, selection: { text: 'Mira' }, reading: { context: { before: 'The harbor was dark.', after: 'walked toward the lighthouse.' } } })).resolves.toBeInstanceOf(ArrayBuffer);
     expect(worker.calls[0]).toMatchObject({ model: WORKERS_AI_MODEL, input: expect.objectContaining({
       max_tokens: 360,
-      response_format: expect.objectContaining({ json_schema: expect.objectContaining({ required: ['scene', 'subjectKind', 'renderingHint'] }) }),
+      response_format: expect.objectContaining({ json_schema: expect.objectContaining({ required: ['scene', 'renderingHint'] }) }),
     }) });
     expect(worker.calls[1]).toMatchObject({ model: ILLUSTRATION_MODEL, input: expect.objectContaining({ steps: 8 }) });
     const normalizationInput = worker.calls[0]?.input as { messages: Array<{ content: string }> };
@@ -124,18 +123,17 @@ describe('Workers AI provider', () => {
       contextAfter: 'walked toward the lighthouse.',
     });
     const prompt = (worker.calls[1]?.input as { prompt: string }).prompt;
-    expect(prompt).toContain('coherent visual reference');
-    expect(prompt).toContain('SCENE TO DEPICT:');
+    expect(prompt).toContain('Generate a photorealistic cinematic photograph, not manga or animation of this source-grounded scene:');
     expect(prompt).toContain('A human woman walks from a dark harbor toward a lighthouse.');
-    expect(prompt).toContain('SUBJECT: Depict every described person as a human person');
-    expect(prompt).toContain('STYLE: naturalistic, realistic black-and-white cinematic photograph');
+    expect(prompt).not.toContain('SUBJECT:');
+    expect(prompt).not.toContain('black-and-white');
     expect(prompt).not.toContain('manga scene');
     expect(prompt).not.toContain('The harbor was dark.');
     expect(prompt).not.toContain('walked toward the lighthouse.');
   });
 
   it('uses the normalized rendering hint rather than guessing a style from raw source text', async () => {
-    const worker = illustrationWorker({ scene: 'A dragon crosses an enchanted kingdom.', subjectKind: 'nonhuman', renderingHint: 'fantasy' });
+    const worker = illustrationWorker({ scene: 'A dragon crosses an enchanted kingdom.', renderingHint: 'fantasy' });
     const provider = createWorkersAiExplanationProvider(worker.ai);
     await provider.generateIllustration?.({
       version: 1,
@@ -143,20 +141,20 @@ describe('Workers AI provider', () => {
       reading: { context: { before: '', after: '' } },
     });
     const firstPrompt = (worker.calls[1]?.input as { prompt: string }).prompt;
-    expect(firstPrompt).toContain('STYLE: mature cinematic narrative art');
+    expect(firstPrompt).toContain('Generate mature narrative art of this source-grounded scene:');
 
-    worker.setBrief({ scene: 'A girl starts her first day at school.', subjectKind: 'human', renderingHint: 'manga' });
+    worker.setBrief({ scene: 'A girl starts her first day at school.', renderingHint: 'manga' });
     await provider.generateIllustration?.({
       version: 1,
       selection: { text: 'This light novel depicts her first day at school.' },
       reading: { context: { before: '', after: '' } },
     });
 
-    expect((worker.calls[3]?.input as { prompt: string }).prompt).toContain('STYLE: restrained black-and-white manga scene');
+    expect((worker.calls[3]?.input as { prompt: string }).prompt).toContain('Generate a restrained manga illustration of this source-grounded scene:');
   });
 
   it('keeps the normalized scene within the image model prompt limit', async () => {
-    const worker = illustrationWorker({ scene: `A human boy ${'x'.repeat(586)}`, subjectKind: 'human', renderingHint: 'neutral' });
+    const worker = illustrationWorker({ scene: `A human boy ${'x'.repeat(586)}`, renderingHint: 'neutral' });
     const provider = createWorkersAiExplanationProvider(worker.ai);
     await provider.generateIllustration?.({
       version: 1,
@@ -167,11 +165,11 @@ describe('Workers AI provider', () => {
     const prompt = (worker.calls[1]?.input as { prompt: string }).prompt;
     expect(Array.from(prompt).length).toBeLessThanOrEqual(2048);
     expect(prompt).toContain(`A human boy ${'x'.repeat(586)}`);
-    expect(prompt).toContain('SCENE TO DEPICT:');
+    expect(prompt).toContain('source-grounded scene:');
   });
 
   it('rejects unusable illustration-normalization output before calling the image model', async () => {
-    const run = vi.fn().mockResolvedValue({ response: { scene: 'A boy.', subjectKind: 'person', renderingHint: 'realistic' } });
+    const run = vi.fn().mockResolvedValue({ response: { scene: 'A boy.', renderingHint: 'stylized' } });
     const provider = createWorkersAiExplanationProvider({ run });
 
     await expect(provider.generateIllustration?.({
@@ -183,7 +181,7 @@ describe('Workers AI provider', () => {
   });
 });
 
-type IllustrationBrief = { scene: string; subjectKind: 'human' | 'nonhuman' | 'scene_or_object'; renderingHint: 'realistic' | 'fantasy' | 'manga' | 'neutral' };
+type IllustrationBrief = { scene: string; renderingHint: 'realistic' | 'fantasy' | 'manga' | 'neutral' };
 
 function illustrationWorker(initialBrief: IllustrationBrief) {
   let brief = initialBrief;
