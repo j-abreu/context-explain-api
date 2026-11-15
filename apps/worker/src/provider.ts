@@ -69,7 +69,7 @@ export type WorkersAiBinding = {
   run(model: typeof ILLUSTRATION_MODEL, input: { prompt: string; steps: number }): Promise<{ image: string }>;
 };
 
-export type ExplanationProviderErrorCode = 'timeout' | 'service_unavailable' | 'internal_error';
+export type ExplanationProviderErrorCode = 'timeout' | 'service_unavailable' | 'usage_limit_reached' | 'internal_error';
 
 export class ExplanationProviderError extends Error {
   constructor(
@@ -306,9 +306,12 @@ function classifyWorkersAiError(error: unknown): ExplanationProviderError {
     return new ExplanationProviderError('timeout', true);
   }
 
+  if (message.includes('daily free allocation') || message.includes('used up your daily')) {
+    return new ExplanationProviderError('usage_limit_reached', true);
+  }
+
   if (status === 429
     || (status !== undefined && status >= 500)
-    || message.includes('daily free allocation')
     || message.includes('neurons')
     || message.includes('quota')) {
     return new ExplanationProviderError('service_unavailable', true);

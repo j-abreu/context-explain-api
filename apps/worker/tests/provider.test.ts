@@ -79,7 +79,7 @@ describe('Workers AI provider', () => {
       selection: { text: 'A boy waits by the harbor.' },
       reading: { context: { before: '', after: '' } },
     })).rejects.toMatchObject({
-      code: 'service_unavailable',
+      code: 'usage_limit_reached',
       retryable: true,
     } satisfies Partial<ExplanationProviderError>);
   });

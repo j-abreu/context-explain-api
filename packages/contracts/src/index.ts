@@ -258,6 +258,7 @@ export const STRUCTURED_EXPLANATION_JSON_SCHEMA = {
 export const EXPLAIN_ERROR_CODES = [
   'invalid_request',
   'service_unavailable',
+  'usage_limit_reached',
   'timeout',
   'internal_error',
 ] as const;

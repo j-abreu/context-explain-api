@@ -154,6 +154,26 @@ describe('Cloudflare Worker API', () => {
     });
   });
 
+  it('identifies a retryable illustration usage limit', async () => {
+    const provider: ExplanationProvider = {
+      explain: vi.fn(),
+      generateIllustration: vi.fn().mockRejectedValue(new ExplanationProviderError('usage_limit_reached', true)),
+    };
+    const response = await handleRequest(explainRequest(createIllustrationRequest(), '/v1/illustrate/book'), {
+      provider,
+      rateLimiter: allowAll(),
+    });
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({
+      error: {
+        code: 'usage_limit_reached',
+        message: 'The illustration service has reached its daily usage limit. Please try again after it resets.',
+        retryable: true,
+      },
+    });
+  });
+
   it('returns either a v4 answer or a normalized, policy-clamped search plan', async () => {
     const request = { ...createBookV3Request(), version: BOOK_EXPLANATION_V4_CONTRACT_VERSION };
     const provider: ExplanationProvider = {

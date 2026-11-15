@@ -323,6 +323,10 @@ function getPublicErrorMessage(code: ExplanationProviderError['code']): string {
     return 'The explanation service is temporarily unavailable.';
   }
 
+  if (code === 'usage_limit_reached') {
+    return 'The explanation service has reached its daily usage limit. Please try again after it resets.';
+  }
+
   return 'The explanation could not be generated.';
 }
 
@@ -333,6 +337,10 @@ function getPublicIllustrationErrorMessage(code: ExplanationProviderError['code'
 
   if (code === 'service_unavailable') {
     return 'The illustration generation service is temporarily unavailable.';
+  }
+
+  if (code === 'usage_limit_reached') {
+    return 'The illustration service has reached its daily usage limit. Please try again after it resets.';
   }
 
   return 'The illustration could not be generated.';
