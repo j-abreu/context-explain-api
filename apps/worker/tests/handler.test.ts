@@ -137,6 +137,23 @@ describe('Cloudflare Worker API', () => {
     expect(provider.generateIllustration).not.toHaveBeenCalled();
   });
 
+  it('returns a safe, illustration-specific provider error', async () => {
+    const provider: ExplanationProvider = {
+      explain: vi.fn(),
+      generateIllustration: vi.fn().mockRejectedValue(new ExplanationProviderError('timeout', true)),
+    };
+    const response = await handleRequest(explainRequest(createIllustrationRequest(), '/v1/illustrate/book'), {
+      provider,
+      rateLimiter: allowAll(),
+    });
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({
+      version: BOOK_ILLUSTRATION_CONTRACT_VERSION,
+      error: { code: 'timeout', message: 'The illustration request timed out.', retryable: true },
+    });
+  });
+
   it('returns either a v4 answer or a normalized, policy-clamped search plan', async () => {
     const request = { ...createBookV3Request(), version: BOOK_EXPLANATION_V4_CONTRACT_VERSION };
     const provider: ExplanationProvider = {

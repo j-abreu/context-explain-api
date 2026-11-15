@@ -169,7 +169,7 @@ async function handleIllustrationRequest(request: Request, options: HandleReques
     } });
   } catch (error: unknown) {
     const providerError = error instanceof ExplanationProviderError ? error : new ExplanationProviderError('internal_error', false);
-    return explainError(BOOK_ILLUSTRATION_CONTRACT_VERSION, requestId, providerError.code, getPublicErrorMessage(providerError.code), providerError.retryable, providerError.code === 'internal_error' ? 500 : 503);
+    return explainError(BOOK_ILLUSTRATION_CONTRACT_VERSION, requestId, providerError.code, getPublicIllustrationErrorMessage(providerError.code), providerError.retryable, providerError.code === 'internal_error' ? 500 : 503);
   }
 }
 
@@ -324,6 +324,18 @@ function getPublicErrorMessage(code: ExplanationProviderError['code']): string {
   }
 
   return 'The explanation could not be generated.';
+}
+
+function getPublicIllustrationErrorMessage(code: ExplanationProviderError['code']): string {
+  if (code === 'timeout') {
+    return 'The illustration request timed out.';
+  }
+
+  if (code === 'service_unavailable') {
+    return 'The illustration generation service is temporarily unavailable.';
+  }
+
+  return 'The illustration could not be generated.';
 }
 
 function methodNotAllowed(allow: string): Response {
