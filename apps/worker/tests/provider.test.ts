@@ -119,9 +119,11 @@ describe('Workers AI provider', () => {
     const normalizationInput = worker.calls[0]?.input as { messages: Array<{ content: string }> };
     expect(JSON.parse(normalizationInput.messages[1]?.content ?? '{}')).toMatchObject({
       focalExcerpt: 'Mira',
-      contextBefore: 'The harbor was dark.',
-      contextAfter: 'walked toward the lighthouse.',
+      referenceContextBefore: 'The harbor was dark.',
+      referenceContextAfter: 'walked toward the lighthouse.',
     });
+    expect(normalizationInput.messages[0]?.content).toContain('only what the focal excerpt makes depictable');
+    expect(normalizationInput.messages[0]?.content).toContain('never add visual details that appear only in context');
     const prompt = (worker.calls[1]?.input as { prompt: string }).prompt;
     expect(prompt).toContain('Generate a photorealistic cinematic photograph, not manga or animation of this source-grounded scene:');
     expect(prompt).toContain('A human woman walks from a dark harbor toward a lighthouse.');
