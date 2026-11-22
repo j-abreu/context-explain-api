@@ -154,14 +154,14 @@ export function createWorkersAiExplanationProvider(ai: WorkersAiBinding, options
         const normalizationPrompt = buildIllustrationNormalizationPrompt(request);
         let normalizationResult: unknown;
         try {
-          normalizationResult = await runPrompt(ai, normalizationPrompt, ILLUSTRATION_BRIEF_JSON_SCHEMA);
-        } catch (error: unknown) {
-          if (!(error instanceof ExplanationProviderError) || error.code !== 'usage_limit_reached') throw error;
           normalizationResult = await generateOpenAiIllustrationBrief(openAiApiKey, normalizationPrompt, fetcher);
+        } catch (error: unknown) {
+          console.warn('OpenAI illustration normalizer failed; falling back to Workers AI.', describeError(error));
+          normalizationResult = await runPrompt(ai, normalizationPrompt, ILLUSTRATION_BRIEF_JSON_SCHEMA);
         }
         const brief = extractIllustrationBrief(normalizationResult);
         if (brief === undefined) {
-          console.error('Workers AI returned no usable illustration brief.', {
+          console.error('Illustration normalizer returned no usable illustration brief.', {
             promptVersion: normalizationPrompt.version,
             ...describeResultShape(normalizationResult),
           });

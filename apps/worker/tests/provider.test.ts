@@ -115,14 +115,18 @@ describe('Workers AI provider', () => {
       scene: 'A human woman walks from a dark harbor toward a lighthouse.',
       renderingHint: 'realistic',
     });
-    const fetcher = openAiImageFetcher();
+    const fetcher = openAiIllustrationFetcher({
+      scene: 'A human woman walks from a dark harbor toward a lighthouse.',
+      renderingHint: 'realistic',
+    });
     const provider = createWorkersAiExplanationProvider(worker.ai, { openAiApiKey: 'test-key', fetcher });
     await expect(provider.generateIllustration?.({ version: 1, selection: { text: 'Mira' }, reading: { context: { before: 'The harbor was dark.', after: 'walked toward the lighthouse.' } } })).resolves.toBeInstanceOf(ArrayBuffer);
-    expect(worker.calls[0]).toMatchObject({ model: WORKERS_AI_MODEL, input: expect.objectContaining({
-      max_tokens: 360,
-      response_format: expect.objectContaining({ json_schema: expect.objectContaining({ required: ['scene', 'renderingHint'] }) }),
-    }) });
-    const normalizationInput = worker.calls[0]?.input as { messages: Array<{ content: string }> };
+    expect(worker.calls).toHaveLength(0);
+    expect(fetcher).toHaveBeenNthCalledWith(1, 'https://api.openai.com/v1/chat/completions', expect.objectContaining({ method: 'POST' }));
+    const normalizationRequest = fetcher.mock.calls[0]?.[1] as RequestInit;
+    const normalizationPayload = JSON.parse(normalizationRequest.body as string) as { model: string; messages: Array<{ content: string }> };
+    expect(normalizationPayload.model).toBe('gpt-4o-mini');
+    const normalizationInput = { messages: normalizationPayload.messages };
     expect(JSON.parse(normalizationInput.messages[1]?.content ?? '{}')).toMatchObject({
       focalExcerpt: 'Mira',
       referenceContextBefore: 'The harbor was dark.',
@@ -132,7 +136,7 @@ describe('Workers AI provider', () => {
     expect(normalizationInput.messages[0]?.content).toContain('never add visual details that appear only in context');
     expect(normalizationInput.messages[0]?.content).toContain('Interpret metaphors, idioms, hyperbole, and comparisons');
     expect(normalizationInput.messages[0]?.content).toContain('describe the implied visible human trait');
-    const imageRequest = fetcher.mock.calls[0]?.[1] as RequestInit;
+    const imageRequest = fetcher.mock.calls[1]?.[1] as RequestInit;
     expect(fetcher).toHaveBeenCalledWith('https://api.openai.com/v1/images/generations', expect.objectContaining({ method: 'POST' }));
     expect(imageRequest.headers).toMatchObject({ authorization: 'Bearer test-key', 'content-type': 'application/json' });
     const imagePayload = JSON.parse(imageRequest.body as string) as { model: string; prompt: string; output_format: string; quality: string };
@@ -153,47 +157,46 @@ describe('Workers AI provider', () => {
 
   it('uses the normalized rendering hint rather than guessing a style from raw source text', async () => {
     const worker = illustrationWorker({ scene: 'A dragon crosses an enchanted kingdom.', renderingHint: 'fantasy' });
-    const fetcher = openAiImageFetcher();
+    const fetcher = openAiIllustrationFetcher({ scene: 'A dragon crosses an enchanted kingdom.', renderingHint: 'fantasy' });
     const provider = createWorkersAiExplanationProvider(worker.ai, { openAiApiKey: 'test-key', fetcher });
     await provider.generateIllustration?.({
       version: 1,
       selection: { text: 'The dragon crossed the enchanted kingdom.' },
       reading: { context: { before: '', after: '' } },
     });
-    const firstPrompt = JSON.parse((fetcher.mock.calls[0]?.[1] as RequestInit).body as string).prompt as string;
+    const firstPrompt = JSON.parse((fetcher.mock.calls[1]?.[1] as RequestInit).body as string).prompt as string;
     expect(firstPrompt).toContain('Generate mature narrative art of this source-grounded scene:');
 
-    worker.setBrief({ scene: 'A girl starts her first day at school.', renderingHint: 'manga' });
+    fetcher.setBrief({ scene: 'A girl starts her first day at school.', renderingHint: 'manga' });
     await provider.generateIllustration?.({
       version: 1,
       selection: { text: 'This light novel depicts her first day at school.' },
       reading: { context: { before: '', after: '' } },
     });
 
-    expect(JSON.parse((fetcher.mock.calls[1]?.[1] as RequestInit).body as string).prompt).toContain('Generate a restrained manga illustration of this source-grounded scene:');
+    expect(JSON.parse((fetcher.mock.calls[3]?.[1] as RequestInit).body as string).prompt).toContain('Generate a restrained manga illustration of this source-grounded scene:');
   });
 
-  it('uses OpenAI to normalize an illustration when the Workers AI allocation is exhausted', async () => {
-    const ai: WorkersAiBinding = {
-      run: vi.fn().mockRejectedValue({ name: 'AiError', message: '4006: you have used up your daily free allocation of 10,000 neurons.' }),
-    } as WorkersAiBinding;
+  it('falls back to Workers AI when OpenAI cannot normalize an illustration', async () => {
+    const worker = illustrationWorker({ scene: 'A boy waits by the harbor.', renderingHint: 'realistic' });
     const fetcher = vi.fn<typeof fetch>()
-      .mockResolvedValueOnce(new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ scene: 'A boy waits by the harbor.', renderingHint: 'realistic' }) } }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response('unavailable', { status: 503 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ data: [{ b64_json: jpegResult().image }] }), { status: 200 }));
-    const provider = createWorkersAiExplanationProvider(ai, { openAiApiKey: 'test-key', fetcher });
+    const provider = createWorkersAiExplanationProvider(worker.ai, { openAiApiKey: 'test-key', fetcher });
 
     await expect(provider.generateIllustration?.({
       version: 1,
       selection: { text: 'A boy waits by the harbor.' },
       reading: { context: { before: '', after: '' } },
     })).resolves.toBeInstanceOf(ArrayBuffer);
+    expect(worker.calls).toHaveLength(1);
     expect(fetcher).toHaveBeenNthCalledWith(1, 'https://api.openai.com/v1/chat/completions', expect.objectContaining({ method: 'POST' }));
     expect(fetcher).toHaveBeenNthCalledWith(2, 'https://api.openai.com/v1/images/generations', expect.objectContaining({ method: 'POST' }));
   });
 
   it('keeps the normalized scene within the image model prompt limit', async () => {
     const worker = illustrationWorker({ scene: `A human boy ${'x'.repeat(586)}`, renderingHint: 'neutral' });
-    const fetcher = openAiImageFetcher();
+    const fetcher = openAiIllustrationFetcher({ scene: `A human boy ${'x'.repeat(586)}`, renderingHint: 'neutral' });
     const provider = createWorkersAiExplanationProvider(worker.ai, { openAiApiKey: 'test-key', fetcher });
     await provider.generateIllustration?.({
       version: 1,
@@ -201,39 +204,39 @@ describe('Workers AI provider', () => {
       reading: { context: { before: `BEFORE-${'b'.repeat(593)}`, after: `AFTER-${'a'.repeat(594)}` } },
     });
 
-    const prompt = JSON.parse((fetcher.mock.calls[0]?.[1] as RequestInit).body as string).prompt as string;
+    const prompt = JSON.parse((fetcher.mock.calls[1]?.[1] as RequestInit).body as string).prompt as string;
     expect(Array.from(prompt).length).toBeLessThanOrEqual(2048);
     expect(prompt).toContain(`A human boy ${'x'.repeat(586)}`);
     expect(prompt).toContain('source-grounded scene:');
   });
 
   it('rejects unusable illustration-normalization output before calling the image model', async () => {
-    const run = vi.fn().mockResolvedValue({ response: { scene: 'A boy.', renderingHint: 'stylized' } });
-    const provider = createWorkersAiExplanationProvider({ run });
+    const run = vi.fn();
+    const provider = createWorkersAiExplanationProvider({ run }, { openAiApiKey: 'test-key', fetcher: openAiIllustrationFetcher({ scene: 'A boy.', renderingHint: 'stylized' }) });
 
     await expect(provider.generateIllustration?.({
       version: 1,
       selection: { text: 'A boy.' },
       reading: { context: { before: '', after: '' } },
     })).rejects.toMatchObject({ code: 'internal_error', retryable: false } satisfies Partial<ExplanationProviderError>);
-    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).not.toHaveBeenCalled();
   });
 
-  it('accepts a JSON-encoded illustration brief from Workers AI', async () => {
-    const run = vi.fn()
-      .mockResolvedValueOnce({ response: JSON.stringify({ scene: 'A boy waits by the harbor.', renderingHint: 'realistic' }) });
-    const provider = createWorkersAiExplanationProvider({ run }, { openAiApiKey: 'test-key', fetcher: openAiImageFetcher() });
+  it('uses the OpenAI illustration brief without invoking Workers AI', async () => {
+    const run = vi.fn();
+    const provider = createWorkersAiExplanationProvider({ run }, { openAiApiKey: 'test-key', fetcher: openAiIllustrationFetcher({ scene: 'A boy waits by the harbor.', renderingHint: 'realistic' }) });
 
     await expect(provider.generateIllustration?.({
       version: 1,
       selection: { text: 'A boy waits by the harbor.' },
       reading: { context: { before: '', after: '' } },
     })).resolves.toBeInstanceOf(ArrayBuffer);
-    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).not.toHaveBeenCalled();
   });
 });
 
 type IllustrationBrief = { scene: string; renderingHint: 'realistic' | 'fantasy' | 'manga' | 'neutral' };
+type IllustrationBriefResponse = { scene: string; renderingHint: string };
 
 function illustrationWorker(initialBrief: IllustrationBrief) {
   let brief = initialBrief;
@@ -256,8 +259,15 @@ function jpegResult() {
   return { image: btoa(String.fromCharCode(0xff, 0xd8, 0xff, 0x00)) };
 }
 
-function openAiImageFetcher() {
-  return vi.fn<typeof fetch>(() => Promise.resolve(new Response(JSON.stringify({ data: [{ b64_json: jpegResult().image }] }), { status: 200 })));
+function openAiIllustrationFetcher(initialBrief: IllustrationBriefResponse) {
+  let brief = initialBrief;
+  const fetcher = vi.fn<typeof fetch>((input) => {
+    if (String(input) === 'https://api.openai.com/v1/chat/completions') {
+      return Promise.resolve(new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(brief) } }] }), { status: 200 }));
+    }
+    return Promise.resolve(new Response(JSON.stringify({ data: [{ b64_json: jpegResult().image }] }), { status: 200 }));
+  });
+  return Object.assign(fetcher, { setBrief(nextBrief: IllustrationBriefResponse) { brief = nextBrief; } });
 }
 
 function createRequest(
